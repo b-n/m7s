@@ -1,0 +1,3 @@
+# ratatui -> unicode-width 0.2.0
+# ratatui -> unicode-truncate -> unicode-width 0.1.14
+allowed-duplicate-crates = ["unicode-width"]

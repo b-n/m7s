@@ -1,0 +1,31 @@
+[package]
+name = "m7s"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "m7s - m(anifest)s - a tool for helping with the generation of kubernetes manifests"
+repository = "https://www.github.com/b-n/m7s"
+readme = "README.md"
+keywords = ["kubernetes", "manifests", "cli"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+log = { version = "0.4.28" }
+env_logger = { version = "0.11.8" }
+clap = { version = "4.5.47", features = ["derive", "string"] }
+ratatui = { version = "0.29.0", features = ["crossterm"] }
+yaml-rust2 = { version = "0.10.4" }
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+cargo = "warn"
+unknown_lints = "allow"
+missing_debug_implementation = "warn"
+missing_copy_implementation = "warn"
+rust_2018_idioms = "warn"
+rust_2021_compatibility = "warn"
+trivial_casts = "warn"
+trivial_numeric_casts = "warn"
+unused_qualifications = "warn"
+variant_size_difference = "warn"
