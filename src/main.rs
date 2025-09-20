@@ -1,16 +1,21 @@
+mod api_client;
 mod config;
 mod error;
-mod kube_config;
 mod logging;
 
 use error::Error;
 
-fn main() -> Result<(), Error> {
+#[tokio::main]
+async fn main() -> Result<(), Error> {
     logging::init_logging();
 
     let config = config::config()?;
 
-    println!("Hello, world!");
+    let mut client = api_client::from_config(&config).await?;
+
+    let kinds = client.get_kinds().await?;
+
+    println!("Available kinds: {kinds:?}");
 
     Ok(())
 }

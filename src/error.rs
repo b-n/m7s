@@ -1,22 +1,26 @@
+use std::error::Error as _;
+
 use crate::config::ConfigError;
+use kube_client::config::KubeconfigError;
+use kube_client::error::Error as KubeError;
 
-#[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
+#[derive(thiserror::Error)]
 pub enum Error {
-    ConfigError(ConfigError),
+    #[error("ConfigError")]
+    ConfigError(#[from] ConfigError),
+    #[error("KubeError")]
+    KubeError(#[from] KubeError),
+    #[error("KubeconfigError")]
+    KubeconfigError(#[from] KubeconfigError),
 }
 
-impl std::fmt::Display for Error {
+impl std::fmt::Debug for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::ConfigError(e) => write!(f, "Configuration error: {e}"),
+        writeln!(f, "{self}")?;
+        if let Some(e) = self.source() {
+            writeln!(f, "  Caused by: {e:?} - {e}")?;
         }
+        Ok(())
     }
 }
-
-impl From<ConfigError> for Error {
-    fn from(e: ConfigError) -> Self {
-        Error::ConfigError(e)
-    }
-}
-
-impl std::error::Error for Error {}

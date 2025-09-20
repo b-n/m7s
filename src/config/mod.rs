@@ -1,10 +1,9 @@
 use clap::Parser;
+use kube_client::config::Kubeconfig;
 use log::debug;
 use std::error::Error;
 use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::{env, fs::read_to_string, path::PathBuf};
-
-use crate::kube_config;
+use std::{env, path::PathBuf};
 
 fn get_default_kube_config_path() -> PathBuf {
     if let Ok(kube_config) = env::var("KUBECONFIG") {
@@ -31,8 +30,8 @@ struct CliConfig {
 
 #[derive(Debug)]
 pub struct Config {
-    context: String,
-    kube_config: kube_config::KubeConfig,
+    pub context: String,
+    pub kube_config: Kubeconfig,
 }
 
 #[derive(Debug)]
@@ -75,14 +74,14 @@ pub fn config() -> Result<Config, ConfigError> {
     }
     debug!("kube config path exists, loading...");
 
-    let kube_config = read_to_string(kube_config_path).unwrap();
-    let kube_config = kube_config::from_str(&kube_config);
+    let kube_config = Kubeconfig::read_from(kube_config_path).unwrap();
 
     let context = if let Some(ctx) = cli.context {
         ctx
     } else {
         kube_config
-            .get_current_context()
+            .current_context
+            .clone()
             .ok_or(ConfigError::InvalidContext(
                 "Ensure a context is provided or selected in your kube configuration".to_string(),
             ))?
