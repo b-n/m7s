@@ -8,6 +8,18 @@ A tool to help with the generation of kubernetes manifests
 cargo run m7s
 ```
 
+# Goals and non goals
+
+Goals:
+
+- TUI interface for helping devs to generate manifests
+- Support of core kubernetes resources, along with CRDs
+- Loading and saving existing manifests whilst preserving formatting
+
+Non-goals:
+
+- YAML ast parser (although we might need to make one...)
+
 # Meta
 
 This section should die hopefully...
