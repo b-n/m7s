@@ -1,4 +1,5 @@
 mod api_client;
+mod app;
 mod config;
 mod error;
 mod logging;
@@ -11,11 +12,17 @@ async fn main() -> Result<(), Error> {
 
     let config = config::config()?;
 
-    let mut client = api_client::from_config(&config).await?;
+    let client = api_client::from_config(&config).await?;
 
-    let kinds = client.get_kinds().await?;
+    let mut app = app::App::new(client);
 
-    println!("Available kinds: {kinds:?}");
+    let terminal = app.startup()?;
+
+    let result = app.run(terminal).await;
+
+    app.shutdown();
+
+    result?;
 
     Ok(())
 }

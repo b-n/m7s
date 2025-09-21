@@ -40,12 +40,6 @@ Possible crates providing round trip:
   - No commits/updates since original posting
   - Initial commit = the whole project. Will keep an eye to see if it ever gets updates.
 
-## TODO
-
-- [ ] Configured kubernetes client
-- [ ] Kubernetes Client -> Openapiv3 parser
-- [ ] Ratatui hello world
-
 ## Links
 
 - $SERVER/api/v1 gives a list of the core types (e.g. pods, services, configmap)
