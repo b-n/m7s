@@ -12,6 +12,7 @@ pub enum AppEvent {
     Submit,
     Load,
     CursorY(isize),
+    Indent(isize),
 }
 
 pub fn handle_event(mode: &AppMode) -> io::Result<Option<AppEvent>> {
@@ -41,7 +42,8 @@ fn handle_normal_mode(event: KeyEvent) -> Option<AppEvent> {
         (KeyCode::Char('l'), KeyModifiers::CONTROL) => Some(AppEvent::Load),
         (KeyCode::Up | KeyCode::Char('k'), _) => Some(AppEvent::CursorY(-1)),
         (KeyCode::Down | KeyCode::Char('j'), _) => Some(AppEvent::CursorY(1)),
-
+        (KeyCode::Char(','), KeyModifiers::SHIFT) => Some(AppEvent::Indent(-1)),
+        (KeyCode::Char('.'), KeyModifiers::SHIFT) => Some(AppEvent::Indent(1)),
         _ => None,
     }
 }
