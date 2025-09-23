@@ -1,9 +1,11 @@
+use log::debug;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::io;
 use tokio::time::Duration;
 
 use super::AppMode;
 
+#[derive(Debug)]
 pub enum AppEvent {
     ChangeMode(AppMode),
     Exit,
@@ -14,14 +16,18 @@ pub enum AppEvent {
 
 pub fn handle_event(mode: &AppMode) -> io::Result<Option<AppEvent>> {
     match event::poll(Duration::from_millis(10)) {
-        Ok(true) => match event::read()? {
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => match mode {
-                AppMode::Normal => Ok(handle_normal_mode(key_event)),
-                AppMode::Input => Ok(handle_input_mode(key_event)),
-                AppMode::Command => Ok(handle_command_mode(key_event)),
-            },
-            _ => Ok(None),
-        },
+        Ok(true) => {
+            let event = match event::read()? {
+                Event::Key(key_event) if key_event.kind == KeyEventKind::Press => match mode {
+                    AppMode::Normal => handle_normal_mode(key_event),
+                    AppMode::Input => handle_input_mode(key_event),
+                    AppMode::Command => handle_command_mode(key_event),
+                },
+                _ => None,
+            };
+            debug!("Generating event. Mode: {mode:?}, Event: {event:?}");
+            Ok(event)
+        }
         _ => Ok(None),
     }
 }

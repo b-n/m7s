@@ -9,7 +9,7 @@ pub use ui::App;
 use event::AppEvent;
 use file::File;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 enum AppMode {
     #[default]
     Normal,
