@@ -1,10 +1,13 @@
 mod error;
 mod event;
+mod file;
 mod ui;
 
 pub use error::AppError;
-use event::AppEvent;
 pub use ui::App;
+
+use event::AppEvent;
+use file::File;
 
 #[derive(Default)]
 enum AppMode {

@@ -906,6 +906,7 @@ dependencies = [
  "kube-client",
  "log",
  "ratatui",
+ "regex",
  "thiserror",
  "tokio",
 ]

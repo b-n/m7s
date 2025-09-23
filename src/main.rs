@@ -15,11 +15,8 @@ async fn main() -> Result<(), Error> {
     let client = api_client::from_config(&config).await?;
 
     let mut app = app::App::new(client);
-
     let terminal = app.startup()?;
-
     let result = app.run(terminal).await;
-
     app.shutdown();
 
     result?;
