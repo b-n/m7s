@@ -7,12 +7,13 @@ use ratatui::{
     widgets::{Block, Paragraph},
     DefaultTerminal, Frame, Terminal,
 };
+use std::path::PathBuf;
 use tokio::time::{sleep, Duration};
 
 use crate::api_client::ApiClient;
 
 use super::event::handle_event;
-use super::{AppError, AppEvent, AppMode};
+use super::{AppError, AppEvent, AppMode, File};
 
 #[derive(Default)]
 struct AppState {
@@ -20,6 +21,8 @@ struct AppState {
     initialized: bool,
     dirty: bool,
     quitting: bool,
+    cursor_pos: usize,
+    file: Option<File>,
 }
 
 pub struct App {
@@ -62,13 +65,14 @@ impl App {
                 terminal.draw(|frame| self.draw(frame))?;
             }
 
-            self::sleep(Duration::from_millis(100)).await;
+            self::sleep(Duration::from_millis(16)).await;
         }
 
         Ok(())
     }
 
-    pub fn shutdown(&self) {
+    pub fn shutdown(&mut self) {
+        self.state.initialized = false;
         ratatui::restore();
     }
 
@@ -76,13 +80,25 @@ impl App {
         match handle_event(&self.state.mode)? {
             Some(AppEvent::ChangeMode(m)) => {
                 self.state.mode = m;
-                self.state.dirty = true;
             }
             Some(AppEvent::Exit) => {
                 self.state.quitting = true;
             }
-            None => {}
+            Some(AppEvent::Load) => {
+                // TODO: This should load a modal, not the file
+                self.load_file();
+            }
+            Some(AppEvent::CursorY(dy)) => {
+                self.state.cursor_pos = self.state.cursor_pos.saturating_add_signed(dy);
+            }
+            Some(_) => {
+                todo!()
+            }
+            None => {
+                return Ok(());
+            }
         }
+        self.state.dirty = true;
         Ok(())
     }
 
@@ -94,6 +110,8 @@ impl App {
         ]);
 
         let [body_area, airline_area, info_area] = main_layout.areas(frame.area());
+        let [line_numbers, main_content] =
+            Layout::horizontal([Constraint::Length(6), Constraint::Min(1)]).areas(body_area);
 
         let message = match self.state.mode {
             AppMode::Normal => vec![
@@ -104,9 +122,6 @@ impl App {
             AppMode::Input => vec!["<ESC> to go back to normal mode.".into()],
         };
         frame.render_widget(Paragraph::new(Text::from(Line::from(message))), info_area);
-
-        let [line_numbers, main_content] =
-            Layout::horizontal([Constraint::Length(6), Constraint::Min(1)]).areas(body_area);
 
         let airline_message = vec![
             format!(" {} ", self.state.mode.display_text())
@@ -120,5 +135,16 @@ impl App {
             airline_area,
         );
         frame.render_widget(Block::new().bg(Color::DarkGray), line_numbers);
+
+        if let Some(file) = &self.state.file {
+            let content = file.display_lines(self.state.cursor_pos);
+            frame.render_widget(Paragraph::new(Text::from(content)), main_content);
+        }
+    }
+
+    fn load_file(&mut self) {
+        let path = PathBuf::from("./kube_config");
+        self.state.file = Some(File::from_path(path));
+        self.state.dirty = true;
     }
 }
