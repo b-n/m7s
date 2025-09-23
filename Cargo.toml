@@ -19,6 +19,8 @@ k8s-openapi = { version = "0.26.0", features = ["v1_30"] }
 tokio = { version = "1.47.1", features = ["full"] }
 thiserror = { version = "2.0.16" }
 futures = { version = "0.3.31" }
+yaml_parser = { version = "0.2.3" }
+rowan = { version = "0.16.1" }
 regex = { version = "1.11.2" }
 
 [lints.clippy]
