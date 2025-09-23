@@ -18,6 +18,7 @@ pub fn handle_event(mode: &AppMode) -> io::Result<Option<AppEvent>> {
             Event::Key(key_event) if key_event.kind == KeyEventKind::Press => match mode {
                 AppMode::Normal => Ok(handle_normal_mode(key_event)),
                 AppMode::Input => Ok(handle_input_mode(key_event)),
+                AppMode::Command => Ok(handle_command_mode(key_event)),
             },
             _ => Ok(None),
         },
@@ -46,4 +47,8 @@ fn handle_input_mode(event: KeyEvent) -> Option<AppEvent> {
         KeyCode::Enter => Some(AppEvent::Submit),
         _ => None,
     }
+}
+
+fn handle_command_mode(_event: KeyEvent) -> Option<AppEvent> {
+    None
 }

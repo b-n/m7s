@@ -120,6 +120,7 @@ impl App {
                 "<arrows> to navigate".into(),
             ],
             AppMode::Input => vec!["<ESC> to go back to normal mode.".into()],
+            AppMode::Command => vec![":".into()],
         };
         frame.render_widget(Paragraph::new(Text::from(Line::from(message))), info_area);
 

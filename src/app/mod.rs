@@ -14,6 +14,7 @@ enum AppMode {
     #[default]
     Normal,
     Input,
+    Command,
 }
 
 impl AppMode {
@@ -21,6 +22,7 @@ impl AppMode {
         match self {
             AppMode::Normal => "NORMAL",
             AppMode::Input => "INPUT",
+            AppMode::Command => "COMMAND",
         }
     }
 }
