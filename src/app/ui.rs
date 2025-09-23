@@ -1,7 +1,7 @@
 use log::info;
 use ratatui::{
     backend::Backend,
-    layout::{Constraint, Layout},
+    layout::{Constraint, Layout, Rect},
     style::{Color, Stylize},
     text::{Line, Text},
     widgets::{Block, Paragraph},
@@ -102,17 +102,44 @@ impl App {
         Ok(())
     }
 
-    fn draw(&self, frame: &mut Frame) {
-        let main_layout = Layout::vertical([
+    fn draw(&mut self, frame: &mut Frame) {
+        let layout = Layout::vertical([
             Constraint::Min(1),
             Constraint::Length(1),
             Constraint::Length(4),
         ]);
 
-        let [body_area, airline_area, info_area] = main_layout.areas(frame.area());
-        let [line_numbers, main_content] =
-            Layout::horizontal([Constraint::Length(6), Constraint::Min(1)]).areas(body_area);
+        let [body_area, airline_area, info_area] = layout.areas(frame.area());
 
+        self.render_main(frame, body_area);
+        self.render_airline(frame, airline_area);
+        self.render_info(frame, info_area);
+    }
+
+    fn render_main(&mut self, frame: &mut Frame, area: Rect) {
+        let [line_numbers, main_content] =
+            Layout::horizontal([Constraint::Length(6), Constraint::Min(1)]).areas(area);
+
+        frame.render_widget(Block::new().bg(Color::DarkGray), line_numbers);
+
+        if let Some(file) = &self.state.file {
+            let content = file.display_lines(self.state.cursor_pos);
+            frame.render_widget(Paragraph::new(Text::from(content)), main_content);
+        }
+    }
+
+    fn render_airline(&mut self, frame: &mut Frame, area: Rect) {
+        let airline_message = vec![
+            format!(" {} ", self.state.mode.display_text())
+                .bold()
+                .bg(Color::Green),
+            " ".into(),
+            "File: example.yaml".fg(Color::Black),
+        ];
+        frame.render_widget(Line::from(airline_message).bg(Color::Indexed(54)), area);
+    }
+
+    fn render_info(&mut self, frame: &mut Frame, area: Rect) {
         let message = match self.state.mode {
             AppMode::Normal => vec![
                 "(Enter) to enter input mode, ".into(),
@@ -122,25 +149,7 @@ impl App {
             AppMode::Input => vec!["<ESC> to go back to normal mode.".into()],
             AppMode::Command => vec![":".into()],
         };
-        frame.render_widget(Paragraph::new(Text::from(Line::from(message))), info_area);
-
-        let airline_message = vec![
-            format!(" {} ", self.state.mode.display_text())
-                .bold()
-                .bg(Color::Green),
-            " ".into(),
-            "File: example.yaml".fg(Color::Black),
-        ];
-        frame.render_widget(
-            Line::from(airline_message).bg(Color::Indexed(54)),
-            airline_area,
-        );
-        frame.render_widget(Block::new().bg(Color::DarkGray), line_numbers);
-
-        if let Some(file) = &self.state.file {
-            let content = file.display_lines(self.state.cursor_pos);
-            frame.render_widget(Paragraph::new(Text::from(content)), main_content);
-        }
+        frame.render_widget(Paragraph::new(Text::from(Line::from(message))), area);
     }
 
     fn load_file(&mut self) {
