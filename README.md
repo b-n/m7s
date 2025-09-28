@@ -26,9 +26,13 @@ This section should die hopefully...
 
 ## YAML parsing
 
-Parsing YAML seems to be a solved problem. Doing round trip does not.
+`yaml_parser` crate seems to do the trick and provides a CST. It's built ontop of rowan which is
+used by rust-analyzer.
 
-Possible crates providing round trip:
+At first glance it doesn't look it's possible to edit the CST, so this is mostly going to be useful
+only when doing yaml validation, and possibly openapiv3 schema validation. 
+
+Other things ruled out
 
 - https://crates.io/crates/yaml-edit
   - Can't find the source anywhere, looks like author killed it?
@@ -42,11 +46,18 @@ Possible crates providing round trip:
 
 ## Links
 
-- $SERVER/api/v1 gives a list of the core types (e.g. pods, services, configmap)
-- $SERVER/apis/ gives a list of the api groups
-- $SERVER/apis/$GROUP gives a list of the typs in the group (e.g. /apis/apps/v1 has deployments, daemonsets, statefulsets)
-- $SERVER/apis/apiextensions.k8s.io/v1/customresourcedefinitions/ gives all the CRDS with their openapiv3 specs
+`kube-rs` provides a `kube-client` crate which wraps the kubernetes API nicely. Notes:
 
-- $SERVER/openapi/v3 - gives a root reference to all the openapiv3 specs
-  - $SERVER/openapi/v3/api/v1 - gives the spec that the server has for core/v1 as above
-  - $SERVER/openapi/v3/apis/apps/v1 - gives the spec that the server has for apps/v1 as above
+- `list_core_api_versions` to get the supported versions of core kubernetes apis
+- `list_core_api_resources` to get availalbe core resources
+- `list_api_groups` to get the api groups and supported/preferred versions
+- `list_api_group_resources` to get the resource of a group at a specific version
+
+This crate doesn't look like it provides methods for the openapiv3 spec endpoints, however it does
+have a request builder, which means we can use that to serialize the Openapiv3 spec responses.
+Notes:
+
+- `$SERVER/openapi/v3` - gives a root reference to all the openapiv3 specs
+  - `$SERVER/openapi/v3/api/v1` - gives the spec that the server has for core/v1 specs
+  - `$SERVER/openapi/v3/apis/apps/v1` - gives the spec that the server has for apps/v1 as above
+  - `$SERVER/openapi/v3/apis/<group>/<version>` - gives teh spec for the group and specific version
