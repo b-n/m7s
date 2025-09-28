@@ -13,7 +13,7 @@ use event::AppEvent;
 use file::File;
 
 #[derive(Default, Debug, Clone)]
-enum AppMode {
+pub enum AppMode {
     #[default]
     Normal,
     Input,

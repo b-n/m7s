@@ -124,8 +124,14 @@ impl FileLine {
 struct FileLines(Vec<FileLine>);
 
 impl FileLines {
-    fn render(&self) -> Vec<Line<'_>> {
-        self.0.iter().map(|l| l.render()).collect()
+    fn render(&self) -> (Vec<Line<'_>>, usize) {
+        self.0.iter().fold((vec![], 0), |acc, l| {
+            let (mut v, m) = acc;
+            let l = l.render();
+            let m = m.max(l.width());
+            v.push(l);
+            (v, m)
+        })
     }
 }
 
@@ -167,7 +173,7 @@ impl File {
         Self { path, lines }
     }
 
-    pub fn display_lines(&self, _cursor: usize) -> Vec<Line<'_>> {
+    pub fn display_lines(&self, _cursor: usize) -> (Vec<Line<'_>>, usize) {
         self.lines.render()
     }
 }

@@ -11,7 +11,7 @@ use crate::app::{AppComponent, AppMode};
 pub struct Info {}
 
 impl AppComponent for Info {
-    fn draw(&self, mode: &AppMode, frame: &mut Frame, area: Rect) {
+    fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {
         let message = match mode {
             AppMode::Normal => vec![
                 "(Enter) to enter input mode, ".into(),

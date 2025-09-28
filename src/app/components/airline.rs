@@ -11,7 +11,7 @@ use crate::app::{AppComponent, AppMode};
 pub struct Airline {}
 
 impl AppComponent for Airline {
-    fn draw(&self, mode: &AppMode, frame: &mut Frame, area: Rect) {
+    fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {
         let airline_message = vec![
             format!(" {} ", mode.display_text()).bold().bg(Color::Green),
             " ".into(),

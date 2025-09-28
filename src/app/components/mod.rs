@@ -21,7 +21,7 @@ pub struct Components {
 }
 
 impl AppComponent for Components {
-    fn draw(&self, mode: &AppMode, frame: &mut Frame, area: Rect) {
+    fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {
         let layout = Layout::vertical([
             Constraint::Min(1),
             Constraint::Length(1),
