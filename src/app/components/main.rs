@@ -12,7 +12,7 @@ use crate::app::{AppComponent, AppEvent, AppMode, File};
 #[derive(Default)]
 pub struct Main {
     file: Option<File>,
-    cursor_pos: usize,
+    cursor_pos: (usize, bool),
     vertical_scroll_state: ScrollbarState,
     horizontal_scroll_state: ScrollbarState,
     vertical_scroll: usize,
@@ -25,7 +25,23 @@ impl Main {
         self.file = Some(File::from_path(path));
     }
 
-    fn clamp_scroll(&mut self) {
+    fn move_cursor(&mut self, dy: isize) {
+        let (mut y, first_element) = self.cursor_pos;
+        y = y.saturating_add_signed(dy);
+
+        let line_count = self.file.as_ref().map_or(0, |f| f.line_count);
+
+        if y > line_count {
+            y = line_count - 1;
+        }
+
+        self.cursor_pos = (y, first_element);
+    }
+
+    fn scroll(&mut self, dx: isize, dy: isize) {
+        self.vertical_scroll = self.vertical_scroll.saturating_add_signed(dy);
+        self.horizontal_scroll = self.horizontal_scroll.saturating_add_signed(dx);
+
         let (file_width, file_length) = self
             .file
             .as_ref()
@@ -38,6 +54,11 @@ impl Main {
         if self.vertical_scroll >= file_length {
             self.vertical_scroll = file_length - 1;
         }
+
+        self.horizontal_scroll_state = self
+            .horizontal_scroll_state
+            .position(self.horizontal_scroll);
+        self.vertical_scroll_state = self.vertical_scroll_state.position(self.vertical_scroll);
     }
 }
 
@@ -85,22 +106,16 @@ impl AppComponent for Main {
                 self.load_file();
             }
             AppEvent::CursorY(dy) => {
-                self.cursor_pos = self.cursor_pos.saturating_add_signed(*dy);
+                self.move_cursor(*dy);
             }
             AppEvent::ScrollX(dx) => {
-                self.horizontal_scroll = self.horizontal_scroll.saturating_add_signed(*dx);
-                self.clamp_scroll();
-
-                self.horizontal_scroll_state = self
-                    .horizontal_scroll_state
-                    .position(self.horizontal_scroll);
+                self.scroll(*dx, 0);
             }
             AppEvent::ScrollY(dy) => {
-                self.vertical_scroll = self.vertical_scroll.saturating_add_signed(*dy);
-                self.clamp_scroll();
-
-                self.vertical_scroll_state =
-                    self.vertical_scroll_state.position(self.vertical_scroll);
+                self.scroll(0, *dy);
+            }
+            AppEvent::CursorElement(first_element) => {
+                self.cursor_pos.1 = *first_element;
             }
             _ => return false,
         }

@@ -12,6 +12,7 @@ pub enum AppEvent {
     Submit,
     Load,
     CursorY(isize),
+    CursorElement(bool),
     ScrollX(isize),
     ScrollY(isize),
 }
@@ -47,6 +48,8 @@ fn handle_normal_mode(event: KeyEvent) -> Option<AppEvent> {
         (KeyCode::Char('L'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(1)),
         (KeyCode::Up | KeyCode::Char('k'), _) => Some(AppEvent::CursorY(-1)),
         (KeyCode::Down | KeyCode::Char('j'), _) => Some(AppEvent::CursorY(1)),
+        (KeyCode::Left | KeyCode::Char('h'), _) => Some(AppEvent::CursorElement(true)),
+        (KeyCode::Right | KeyCode::Char('l'), _) => Some(AppEvent::CursorElement(false)),
         (KeyCode::PageUp, KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(-10)),
         (KeyCode::PageDown, KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(10)),
         (KeyCode::PageUp, _) => Some(AppEvent::ScrollY(-10)),

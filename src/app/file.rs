@@ -1,6 +1,6 @@
 use log::debug;
 use ratatui::{
-    style::{Color, Stylize},
+    style::{Color, Style, Stylize},
     text::{Line, Span},
 };
 use regex::Regex;
@@ -41,7 +41,11 @@ impl FromStr for LineContent {
             LineContent::ArrayItem(Box::new(value))
         } else if let Some(caps) = KEY_REGEX.captures(s) {
             let key = caps.name("key").unwrap().as_str();
-            let value = caps.name("value").unwrap().as_str();
+            let value = if let Some(value) = caps.name("value") {
+                value.as_str()
+            } else {
+                ""
+            };
 
             match (key, value) {
                 ("", b) => LineContent::Text(b.to_string()),
@@ -56,16 +60,31 @@ impl FromStr for LineContent {
 }
 
 impl LineContent {
-    fn render(&self) -> Vec<Span<'_>> {
+    fn render(&self, active_line: bool, first_element: bool) -> Vec<Span<'_>> {
         match &self {
             LineContent::ArrayItem(v) => {
                 let mut output = vec!["-".into(), " ".into()];
-                output.extend(v.as_ref().render());
+                output.extend(v.as_ref().render(active_line, first_element));
                 output
             }
-            LineContent::Text(s) => vec![s.into()],
+            LineContent::Text(s) => {
+                let mut span = Span::from(s);
+                if active_line {
+                    span = span.reversed();
+                }
+                vec![span]
+            }
             LineContent::Kvp(k, v) => {
-                vec![k.clone().bold().fg(Color::Yellow), ":".into(), v.into()]
+                let mut key = Span::styled(k, Style::default().bold().fg(Color::Yellow));
+                let mut value = Span::from(v);
+                if active_line {
+                    if first_element {
+                        key = key.reversed();
+                    } else {
+                        value = value.reversed();
+                    }
+                }
+                vec![key, ": ".into(), value]
             }
         }
     }
@@ -84,7 +103,7 @@ static ARRAY_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^-\ (?<value>.*)$").expect("Should always compile"));
 
 static KEY_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"^(?<key>\"[^\"]+"|'[^\']+'|[^\'\"]+):(?<value>.*)$"#)
+    Regex::new(r#"^(?<key>\"[^\"]+"|'[^\']+'|[^\'\"]+):($|\ (?<value>.*))$"#)
         .expect("Should always compile")
 });
 
@@ -112,9 +131,10 @@ impl FromStr for FileLine {
 }
 
 impl FileLine {
-    fn render(&self) -> Line<'_> {
+    fn render(&self, active_line: bool, first_element: bool) -> Line<'_> {
         let mut output: Vec<Span<'_>> = vec![(&self.indent).into()];
-        output.extend(self.content.render());
+        let contents: Vec<Span<'_>> = self.content.render(active_line, first_element);
+        output.extend(contents);
 
         Line::from(output)
     }
@@ -124,18 +144,24 @@ impl FileLine {
 struct FileLines(Vec<FileLine>);
 
 impl FileLines {
-    fn render(&self) -> (Vec<Line<'_>>, usize) {
-        self.0.iter().fold((vec![], 0), |acc, l| {
-            let (mut v, m) = acc;
-            let l = l.render();
+    fn render(&self, cursor: (usize, bool)) -> (Vec<Line<'_>>, usize) {
+        let (cursor_line, first_element) = cursor;
+
+        self.0.iter().enumerate().fold((vec![], 0), |acc, l| {
+            let (mut out, m) = acc;
+            let (index, line) = l;
+            let l = line.render(index == cursor_line, first_element);
             let m = m.max(l.width());
-            v.push(l);
-            (v, m)
+
+            out.push(l);
+            (out, m)
         })
     }
 
     fn max_width(&self) -> usize {
-        self.0.iter().fold(0, |acc, l| acc.max(l.render().width()))
+        self.0
+            .iter()
+            .fold(0, |acc, l| acc.max(l.render(false, false).width()))
     }
 
     fn count(&self) -> usize {
@@ -192,7 +218,7 @@ impl File {
         }
     }
 
-    pub fn display_lines(&self, _cursor: usize) -> (Vec<Line<'_>>, usize) {
-        self.lines.render()
+    pub fn display_lines(&self, cursor: (usize, bool)) -> (Vec<Line<'_>>, usize) {
+        self.lines.render(cursor)
     }
 }
