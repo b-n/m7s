@@ -22,9 +22,53 @@ impl std::fmt::Debug for ParseFileError {
 
 #[derive(Debug)]
 pub enum LineContent {
-    ArrayItem(String),
+    ArrayItem(Box<LineContent>),
     Kvp(String, String),
     Text(String),
+}
+
+impl FromStr for LineContent {
+    type Err = ParseFileError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let content = if let Some(caps) = ARRAY_REGEX.captures(s) {
+            let value = caps
+                .name("value")
+                .unwrap()
+                .as_str()
+                .parse::<LineContent>()?;
+
+            LineContent::ArrayItem(Box::new(value))
+        } else if let Some(caps) = KEY_REGEX.captures(s) {
+            let key = caps.name("key").unwrap().as_str();
+            let value = caps.name("value").unwrap().as_str();
+
+            match (key, value) {
+                ("", b) => LineContent::Text(b.to_string()),
+                (a, b) => LineContent::Kvp(a.to_string(), b.to_string()),
+            }
+        } else {
+            LineContent::Text(s.into())
+        };
+
+        Ok(content)
+    }
+}
+
+impl LineContent {
+    fn render(&self) -> Vec<Span<'_>> {
+        match &self {
+            LineContent::ArrayItem(v) => {
+                let mut output = vec!["-".into(), " ".into()];
+                output.extend(v.as_ref().render());
+                output
+            }
+            LineContent::Text(s) => vec![s.into()],
+            LineContent::Kvp(k, v) => {
+                vec![k.clone().bold().fg(Color::Yellow), ":".into(), v.into()]
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -57,20 +101,8 @@ impl FromStr for FileLine {
             ),
             None => ("", s),
         };
-        let content = if let Some(caps) = ARRAY_REGEX.captures(rest) {
-            let value = caps.name("value").unwrap().as_str();
-            LineContent::ArrayItem(value.to_string())
-        } else if let Some(caps) = KEY_REGEX.captures(rest) {
-            let key = caps.name("key").unwrap().as_str();
-            let value = caps.name("value").unwrap().as_str();
 
-            match (key, value) {
-                ("", b) => LineContent::Text(b.to_string()),
-                (a, b) => LineContent::Kvp(a.to_string(), b.to_string()),
-            }
-        } else {
-            LineContent::Text(rest.into())
-        };
+        let content = rest.parse::<LineContent>()?;
 
         Ok(Self {
             indent: ws.to_string(),
@@ -82,18 +114,7 @@ impl FromStr for FileLine {
 impl FileLine {
     fn render(&self) -> Line<'_> {
         let mut output: Vec<Span<'_>> = vec![(&self.indent).into()];
-
-        match &self.content {
-            LineContent::ArrayItem(v) => {
-                output.extend_from_slice(&["-".into(), " ".into(), v.into()]);
-            }
-            LineContent::Text(s) => output.extend_from_slice(&[s.into()]),
-            LineContent::Kvp(k, v) => output.extend_from_slice(&[
-                k.clone().bold().fg(Color::Yellow),
-                ":".into(),
-                v.into(),
-            ]),
-        }
+        output.extend(self.content.render());
 
         Line::from(output)
     }
