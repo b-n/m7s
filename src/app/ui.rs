@@ -153,7 +153,7 @@ impl App {
     }
 
     fn load_file(&mut self) {
-        let path = PathBuf::from("./kube_config");
+        let path = PathBuf::from("./examples/long.yaml");
         self.state.file = Some(File::from_path(path));
         self.state.dirty = true;
     }
