@@ -1,15 +1,18 @@
+mod components;
 mod error;
 mod event;
 mod file;
+mod traits;
 mod ui;
 
 pub use error::AppError;
+pub use traits::AppComponent;
 pub use ui::App;
 
 use event::AppEvent;
 use file::File;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 enum AppMode {
     #[default]
     Normal,

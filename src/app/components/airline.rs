@@ -1,0 +1,22 @@
+use ratatui::{
+    layout::Rect,
+    style::{Color, Stylize},
+    text::Line,
+    Frame,
+};
+
+use crate::app::{AppComponent, AppMode};
+
+#[derive(Default)]
+pub struct Airline {}
+
+impl AppComponent for Airline {
+    fn draw(&self, mode: &AppMode, frame: &mut Frame, area: Rect) {
+        let airline_message = vec![
+            format!(" {} ", mode.display_text()).bold().bg(Color::Green),
+            " ".into(),
+            "File: example.yaml".fg(Color::Black),
+        ];
+        frame.render_widget(Line::from(airline_message).bg(Color::Indexed(54)), area);
+    }
+}
