@@ -24,6 +24,21 @@ impl Main {
         let path = PathBuf::from("./examples/long.yaml");
         self.file = Some(File::from_path(path));
     }
+
+    fn clamp_scroll(&mut self) {
+        let (file_width, file_length) = self
+            .file
+            .as_ref()
+            .map_or((0, 0), |f| (f.max_width, f.line_count));
+
+        if self.horizontal_scroll >= file_width {
+            self.horizontal_scroll = file_width - 1;
+        }
+
+        if self.vertical_scroll >= file_length {
+            self.vertical_scroll = file_length - 1;
+        }
+    }
 }
 
 impl AppComponent for Main {
@@ -74,12 +89,16 @@ impl AppComponent for Main {
             }
             AppEvent::ScrollX(dx) => {
                 self.horizontal_scroll = self.horizontal_scroll.saturating_add_signed(*dx);
+                self.clamp_scroll();
+
                 self.horizontal_scroll_state = self
                     .horizontal_scroll_state
                     .position(self.horizontal_scroll);
             }
             AppEvent::ScrollY(dy) => {
                 self.vertical_scroll = self.vertical_scroll.saturating_add_signed(*dy);
+                self.clamp_scroll();
+
                 self.vertical_scroll_state =
                     self.vertical_scroll_state.position(self.vertical_scroll);
             }

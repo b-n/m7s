@@ -133,6 +133,14 @@ impl FileLines {
             (v, m)
         })
     }
+
+    fn max_width(&self) -> usize {
+        self.0.iter().fold(0, |acc, l| acc.max(l.render().width()))
+    }
+
+    fn count(&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl FromStr for FileLines {
@@ -160,6 +168,8 @@ impl IntoIterator for FileLines {
 pub struct File {
     path: PathBuf,
     lines: FileLines,
+    pub max_width: usize,
+    pub line_count: usize,
 }
 
 impl File {
@@ -167,10 +177,19 @@ impl File {
         debug!("Loading file");
         //TODO: Make this falliable
         let contents = std::fs::read_to_string(&path).unwrap();
-        let lines = contents.parse().unwrap();
+        let lines: FileLines = contents.parse().unwrap();
         debug!("Parsed lines: {lines:#?}");
 
-        Self { path, lines }
+        // TODO: Maybe a better way to handle this?
+        let max_width = lines.max_width();
+        let line_count = lines.count();
+
+        Self {
+            path,
+            lines,
+            max_width,
+            line_count,
+        }
     }
 
     pub fn display_lines(&self, _cursor: usize) -> (Vec<Line<'_>>, usize) {
