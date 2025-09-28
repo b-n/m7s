@@ -47,6 +47,10 @@ fn handle_normal_mode(event: KeyEvent) -> Option<AppEvent> {
         (KeyCode::Char('L'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(1)),
         (KeyCode::Up | KeyCode::Char('k'), _) => Some(AppEvent::CursorY(-1)),
         (KeyCode::Down | KeyCode::Char('j'), _) => Some(AppEvent::CursorY(1)),
+        (KeyCode::PageUp, KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(-10)),
+        (KeyCode::PageDown, KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(10)),
+        (KeyCode::PageUp, _) => Some(AppEvent::ScrollY(-10)),
+        (KeyCode::PageDown, _) => Some(AppEvent::ScrollY(10)),
         _ => None,
     }
 }
