@@ -86,6 +86,7 @@ impl App {
                 self.state.mode = m.clone();
                 true
             }
+            AppEvent::TerminalResize => true,
             AppEvent::Exit => {
                 self.state.quitting = true;
                 true

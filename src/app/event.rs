@@ -15,12 +15,14 @@ pub enum AppEvent {
     CursorElement(bool),
     ScrollX(isize),
     ScrollY(isize),
+    TerminalResize,
 }
 
 pub fn handle_event(mode: &AppMode) -> io::Result<Option<AppEvent>> {
     match event::poll(Duration::from_millis(10)) {
         Ok(true) => {
             let event = match event::read()? {
+                Event::Resize(_, _) => Some(AppEvent::TerminalResize),
                 Event::Key(key_event) if key_event.kind == KeyEventKind::Press => match mode {
                     AppMode::Normal => handle_normal_mode(key_event),
                     AppMode::Input => handle_input_mode(key_event),
