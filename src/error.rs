@@ -1,7 +1,6 @@
-use kube_client::config::KubeconfigError;
-use kube_client::error::Error as KubeError;
 use std::error::Error as _;
 
+use crate::api_client::Error as ApiError;
 use crate::app::AppError;
 use crate::config::ConfigError;
 
@@ -10,12 +9,10 @@ use crate::config::ConfigError;
 pub enum Error {
     #[error("ConfigError")]
     ConfigError(#[from] ConfigError),
-    #[error("KubeError")]
-    KubeError(#[from] KubeError),
-    #[error("KubeconfigError")]
-    KubeconfigError(#[from] KubeconfigError),
     #[error("AppError")]
     ApplicationError(#[from] AppError),
+    #[error("ApiError")]
+    ApiError(#[from] ApiError),
 }
 
 impl std::fmt::Debug for Error {

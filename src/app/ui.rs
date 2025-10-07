@@ -1,4 +1,4 @@
-use log::info;
+use log::{debug, info};
 use ratatui::{backend::Backend, DefaultTerminal, Frame, Terminal};
 use tokio::time::{sleep, Duration};
 
@@ -50,7 +50,7 @@ impl App {
         }
 
         loop {
-            self.handle_event()?;
+            self.handle_event().await?;
 
             if self.state.quitting {
                 info! {"Quitting application..."}
@@ -72,21 +72,41 @@ impl App {
         ratatui::restore();
     }
 
-    fn handle_event(&mut self) -> std::io::Result<()> {
+    async fn handle_event(&mut self) -> std::io::Result<()> {
         if let Some(event) = handle_event(&self.state.mode)? {
             self.state.dirty =
-                self.handle_app_events(&event) || self.handle_component_events(&event);
+                self.handle_app_events(&event).await || self.handle_component_events(&event);
         }
         Ok(())
     }
 
-    fn handle_app_events(&mut self, event: &AppEvent) -> bool {
+    async fn handle_app_events(&mut self, event: &AppEvent) -> bool {
         match event {
             AppEvent::ChangeMode(m) => {
                 self.state.mode = m.clone();
                 true
             }
             AppEvent::TerminalResize => true,
+            AppEvent::LoadSpec => {
+                // Load a core object spec
+                let group = "v1".into();
+                let spec = self.api_client.get_group_spec(&group).await.unwrap();
+                let path = crate::api_client::QueryPath::new("containers").with_parent("spec");
+                let opts = spec.get_kind_path("Pod", &path);
+                debug!("Spec: {opts:#?}");
+
+                // Load a group object spec
+                let group = ("apps", "v1").into();
+                let spec = self.api_client.get_group_spec(&group).await.unwrap();
+                let path = crate::api_client::QueryPath::new("containers")
+                    .with_parent("spec")
+                    .with_parent("template")
+                    .with_parent("spec");
+                let opts = spec.get_kind_path("Deployment", &path);
+                debug!("Spec: {opts:#?}");
+
+                true
+            }
             AppEvent::Exit => {
                 self.state.quitting = true;
                 true
