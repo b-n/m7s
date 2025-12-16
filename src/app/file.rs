@@ -10,8 +10,8 @@ use std::sync::LazyLock;
 
 #[derive(thiserror::Error)]
 pub enum ParseFileError {
-    #[error("Failed to parse file lines")]
-    Generic,
+    #[error("Capture group missing")]
+    MissingCaptureGroup,
 }
 
 impl std::fmt::Debug for ParseFileError {
@@ -34,13 +34,16 @@ impl FromStr for LineContent {
         let content = if let Some(caps) = ARRAY_REGEX.captures(s) {
             let value = caps
                 .name("value")
-                .unwrap()
+                .ok_or(ParseFileError::MissingCaptureGroup)?
                 .as_str()
                 .parse::<LineContent>()?;
 
             LineContent::ArrayItem(Box::new(value))
         } else if let Some(caps) = KEY_REGEX.captures(s) {
-            let key = caps.name("key").unwrap().as_str();
+            let key = caps
+                .name("key")
+                .ok_or(ParseFileError::MissingCaptureGroup)?
+                .as_str();
             let value = if let Some(value) = caps.name("value") {
                 value.as_str()
             } else {
@@ -115,8 +118,12 @@ impl FromStr for FileLine {
         // available if the regex did not match
         let (ws, rest) = match WS_REGEX.captures(s) {
             Some(caps) => (
-                caps.name("ws").unwrap().as_str(),
-                caps.name("rest").unwrap().as_str(),
+                caps.name("ws")
+                    .ok_or(ParseFileError::MissingCaptureGroup)?
+                    .as_str(),
+                caps.name("rest")
+                    .ok_or(ParseFileError::MissingCaptureGroup)?
+                    .as_str(),
             ),
             None => ("", s),
         };
