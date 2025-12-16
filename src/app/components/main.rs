@@ -1,3 +1,4 @@
+use log::debug;
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Stylize},
@@ -17,6 +18,7 @@ pub struct Main {
     horizontal_scroll_state: ScrollbarState,
     vertical_scroll: usize,
     horizontal_scroll: usize,
+    viewport: (u16, u16),
 }
 
 impl Main {
@@ -25,40 +27,98 @@ impl Main {
         self.file = Some(File::from_path(path));
     }
 
-    fn move_cursor(&mut self, dy: isize) {
-        let (mut y, first_element) = self.cursor_pos;
-        y = y.saturating_add_signed(dy);
-
-        let line_count = self.file.as_ref().map_or(0, |f| f.line_count);
-
-        if y > line_count {
-            y = line_count - 1;
+    fn move_cursor(&mut self, dy: &Delta) {
+        // Do nothing if the file is not loaded
+        if self.file.is_none() {
+            return;
         }
 
-        self.cursor_pos = (y, first_element);
+        let current_pos = self.cursor_pos.0;
+
+        let mut cursor_y = match (self.cursor_visible(), dy) {
+            (true, Delta::Inc(n)) => current_pos.saturating_add(*n),
+            (true, Delta::Dec(n)) => current_pos.saturating_sub(*n),
+            (false, Delta::Inc(_)) => self.vertical_scroll,
+            (false, Delta::Dec(_)) => {
+                // Move cursor to bottom of viewport
+                self.vertical_scroll
+                    .saturating_add(self.viewport.1 as usize)
+                    .saturating_sub(1)
+            }
+            _ => current_pos,
+        };
+        // Clamp the cursor to the file length
+        // Off by 1 due to 0 index
+        let line_count = self.file.as_ref().map_or(0, |f| f.line_count);
+        if cursor_y >= line_count {
+            cursor_y = line_count - 1;
+        }
+
+        // Scroll the view if the cursor left the viewport
+        if cursor_y < self.vertical_scroll {
+            self.scroll_to(None, Some(cursor_y));
+        } else if cursor_y
+            >= self
+                .vertical_scroll
+                .saturating_add(self.viewport.1 as usize)
+        {
+            self.scroll_to(
+                None,
+                Some(cursor_y.saturating_sub(self.viewport.1 as usize)),
+            );
+        }
+
+        // Set the value
+        self.cursor_pos.0 = cursor_y;
     }
 
-    fn scroll(&mut self, dx: isize, dy: isize) {
-        self.vertical_scroll = self.vertical_scroll.saturating_add_signed(dy);
-        self.horizontal_scroll = self.horizontal_scroll.saturating_add_signed(dx);
-
-        let (file_width, file_length) = self
-            .file
-            .as_ref()
-            .map_or((0, 0), |f| (f.max_width, f.line_count));
-
-        if self.horizontal_scroll >= file_width {
-            self.horizontal_scroll = file_width - 1;
-        }
-
-        if self.vertical_scroll >= file_length {
-            self.vertical_scroll = file_length - 1;
+    fn scroll_to(&mut self, x: Option<usize>, y: Option<usize>) {
+        match (x, y) {
+            (Some(x), Some(y)) => {
+                self.horizontal_scroll = x;
+                self.vertical_scroll = y;
+            }
+            (Some(x), None) => {
+                self.horizontal_scroll = x;
+            }
+            (None, Some(y)) => {
+                self.vertical_scroll = y;
+            }
+            _ => {}
         }
 
         self.horizontal_scroll_state = self
             .horizontal_scroll_state
             .position(self.horizontal_scroll);
         self.vertical_scroll_state = self.vertical_scroll_state.position(self.vertical_scroll);
+    }
+
+    fn scroll(&mut self, dx: isize, dy: isize) {
+        let mut vertical_scroll = self.vertical_scroll.saturating_add_signed(dy);
+        let mut horizontal_scroll = self.horizontal_scroll.saturating_add_signed(dx);
+
+        let (file_width, file_length) = self
+            .file
+            .as_ref()
+            .map_or((0, 0), |f| (f.max_width, f.line_count));
+
+        if horizontal_scroll >= file_width {
+            horizontal_scroll = file_width - 1;
+        }
+
+        if vertical_scroll >= file_length {
+            vertical_scroll = file_length - 1;
+        }
+
+        self.scroll_to(Some(horizontal_scroll), Some(vertical_scroll));
+    }
+
+    fn cursor_visible(&self) -> bool {
+        let (y, _) = self.cursor_pos;
+        y >= self.vertical_scroll
+            && y < self
+                .vertical_scroll
+                .saturating_add(self.viewport.1 as usize)
     }
 }
 
@@ -67,6 +127,12 @@ impl AppComponent for Main {
     fn draw(&mut self, _mode: &AppMode, frame: &mut Frame, area: Rect) {
         let [line_numbers, main_content] =
             Layout::horizontal([Constraint::Length(6), Constraint::Min(1)]).areas(area);
+
+        // Height and width reduces by 1 for scrollbars
+        self.viewport = (
+            main_content.width.saturating_sub(1),
+            main_content.height.saturating_sub(1),
+        );
 
         frame.render_widget(Block::new().bg(Color::DarkGray), line_numbers);
 
@@ -105,7 +171,7 @@ impl AppComponent for Main {
                 // TODO: This should load a modal, not the file
                 self.load_file();
             }
-            AppEvent::CursorY(d) => self.move_cursor(d.into()),
+            AppEvent::CursorY(d) => self.move_cursor(d),
             AppEvent::ScrollX(d) => {
                 self.scroll(d.into(), 0);
             }
