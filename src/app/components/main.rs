@@ -170,11 +170,11 @@ impl Main {
             .bg(Color::Indexed(22))
             .padding(Padding::right(1));
 
-        let text = if self.file.is_some() {
+        let text = self.file.as_ref().map_or(Text::from("0"), |file| {
             let top = self.vertical_scroll as u16;
-            let lines: Vec<Line<'_>> = (0..self.viewport.0)
+            let lines: Vec<Line<'_>> = (0..file.line_count)
                 .map(|i| {
-                    let line_no = i + top;
+                    let line_no = i as u16 + top;
                     let mut line = Line::from(format!("{line_no}").to_string());
                     if line_no as usize == self.cursor_pos.0 {
                         line = line.bg(Color::Indexed(236));
@@ -183,9 +183,7 @@ impl Main {
                 })
                 .collect();
             Text::from(lines)
-        } else {
-            Text::from("0")
-        };
+        });
 
         let paragraph = Paragraph::new(text).right_aligned().block(block);
         frame.render_widget(paragraph, area);
