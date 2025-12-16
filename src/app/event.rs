@@ -6,13 +6,19 @@ use tokio::time::Duration;
 use super::AppMode;
 
 #[derive(Debug)]
+pub enum Delta {
+    Inc(Option<usize>),
+    Dec(Option<usize>),
+}
+
+#[derive(Debug)]
 pub enum AppEvent {
     ChangeMode(AppMode),
     Exit,
     Submit,
     Load,
     CursorY(isize),
-    CursorElement(bool),
+    CursorX(Delta),
     ScrollX(isize),
     ScrollY(isize),
     TerminalResize,
@@ -52,8 +58,8 @@ fn handle_normal_mode(event: KeyEvent) -> Option<AppEvent> {
         (KeyCode::Char('L'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(1)),
         (KeyCode::Up | KeyCode::Char('k'), _) => Some(AppEvent::CursorY(-1)),
         (KeyCode::Down | KeyCode::Char('j'), _) => Some(AppEvent::CursorY(1)),
-        (KeyCode::Left | KeyCode::Char('h'), _) => Some(AppEvent::CursorElement(true)),
-        (KeyCode::Right | KeyCode::Char('l'), _) => Some(AppEvent::CursorElement(false)),
+        (KeyCode::Left | KeyCode::Char('h'), _) => Some(AppEvent::CursorX(Delta::Dec(None))),
+        (KeyCode::Right | KeyCode::Char('l'), _) => Some(AppEvent::CursorX(Delta::Inc(None))),
         (KeyCode::PageUp, KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(-10)),
         (KeyCode::PageDown, KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(10)),
         (KeyCode::PageUp, _) => Some(AppEvent::ScrollY(-10)),

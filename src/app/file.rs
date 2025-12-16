@@ -63,11 +63,11 @@ impl FromStr for LineContent {
 }
 
 impl LineContent {
-    fn render(&self, active_line: bool, first_element: bool) -> Vec<Span<'_>> {
+    fn render(&self, active_line: bool, selected_element: usize) -> Vec<Span<'_>> {
         match &self {
             LineContent::ArrayItem(v) => {
                 let mut output = vec!["-".into(), " ".into()];
-                output.extend(v.as_ref().render(active_line, first_element));
+                output.extend(v.as_ref().render(active_line, selected_element));
                 output
             }
             LineContent::Text(s) => {
@@ -81,10 +81,9 @@ impl LineContent {
                 let mut key = Span::styled(k, Style::default().bold().fg(Color::Yellow));
                 let mut value = Span::from(v);
                 if active_line {
-                    if first_element {
-                        key = key.reversed();
-                    } else {
-                        value = value.reversed();
+                    match selected_element {
+                        0 => key = key.reversed(),
+                        _ => value = value.reversed(),
                     }
                 }
                 vec![key, ": ".into(), value]
@@ -138,12 +137,17 @@ impl FromStr for FileLine {
 }
 
 impl FileLine {
-    fn render(&self, active_line: bool, first_element: bool) -> Line<'_> {
-        let mut output: Vec<Span<'_>> = vec![(&self.indent).into()];
-        let contents: Vec<Span<'_>> = self.content.render(active_line, first_element);
-        output.extend(contents);
+    fn render(&self, active_line: bool, selected_element: usize) -> Line<'_> {
+        let mut output: Vec<Span<'_>> = vec![];
 
-        Line::from(output)
+        output.push(Span::raw(&self.indent));
+        output.extend(self.content.render(active_line, selected_element));
+
+        Line::from(output).bg(if active_line {
+            Color::Indexed(236)
+        } else {
+            Color::Reset
+        })
     }
 }
 
@@ -151,13 +155,13 @@ impl FileLine {
 struct FileLines(Vec<FileLine>);
 
 impl FileLines {
-    fn render(&self, cursor: (usize, bool)) -> (Vec<Line<'_>>, usize) {
-        let (cursor_line, first_element) = cursor;
+    fn render(&self, cursor: (usize, usize)) -> (Vec<Line<'_>>, usize) {
+        let (cursor_line, selected_element) = cursor;
 
         self.0.iter().enumerate().fold((vec![], 0), |acc, l| {
             let (mut out, m) = acc;
             let (index, line) = l;
-            let l = line.render(index == cursor_line, first_element);
+            let l = line.render(index == cursor_line, selected_element);
             let m = m.max(l.width());
 
             out.push(l);
@@ -168,7 +172,7 @@ impl FileLines {
     fn max_width(&self) -> usize {
         self.0
             .iter()
-            .fold(0, |acc, l| acc.max(l.render(false, false).width()))
+            .fold(0, |acc, l| acc.max(l.render(false, 0).width()))
     }
 
     fn count(&self) -> usize {
@@ -226,7 +230,7 @@ impl File {
         }
     }
 
-    pub fn display_lines(&self, cursor: (usize, bool)) -> (Vec<Line<'_>>, usize) {
+    pub fn display_lines(&self, cursor: (usize, usize)) -> (Vec<Line<'_>>, usize) {
         self.lines.render(cursor)
     }
 }

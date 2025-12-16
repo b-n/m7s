@@ -9,7 +9,7 @@ pub use error::AppError;
 pub use traits::AppComponent;
 pub use ui::App;
 
-use event::AppEvent;
+use event::{AppEvent, Delta};
 use file::File;
 
 #[derive(Default, Debug, Clone)]

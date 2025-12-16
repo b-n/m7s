@@ -7,12 +7,12 @@ use ratatui::{
 };
 use std::path::PathBuf;
 
-use crate::app::{AppComponent, AppEvent, AppMode, File};
+use crate::app::{AppComponent, AppEvent, AppMode, Delta, File};
 
 #[derive(Default)]
 pub struct Main {
     file: Option<File>,
-    cursor_pos: (usize, bool),
+    cursor_pos: (usize, usize),
     vertical_scroll_state: ScrollbarState,
     horizontal_scroll_state: ScrollbarState,
     vertical_scroll: usize,
@@ -114,8 +114,11 @@ impl AppComponent for Main {
             AppEvent::ScrollY(dy) => {
                 self.scroll(0, *dy);
             }
-            AppEvent::CursorElement(first_element) => {
-                self.cursor_pos.1 = *first_element;
+            AppEvent::CursorX(d) => {
+                self.cursor_pos.1 = match d {
+                    Delta::Inc(_) => 1,
+                    Delta::Dec(_) => 0,
+                };
             }
             _ => return false,
         }
