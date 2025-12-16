@@ -195,8 +195,18 @@ impl Main {
 impl AppComponent for Main {
     #[allow(clippy::cast_possible_truncation)]
     fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {
+        #[allow(clippy::cast_sign_loss)]
+        // Calculate the width needed for line numbers based on max viewport size and current
+        // scroll. log10 to get number of digits, truncated to remove decimal, and +3 (one for
+        // digit, and 2 for padding)
+        let line_number_width = f64::from(self.vertical_scroll as u16 + area.height)
+            .log10()
+            .trunc() as u16
+            + 3;
+
         let [line_numbers, main_content] =
-            Layout::horizontal([Constraint::Length(6), Constraint::Min(1)]).areas(area);
+            Layout::horizontal([Constraint::Length(line_number_width), Constraint::Min(1)])
+                .areas(area);
 
         // Height and width reduces by 1 for scrollbars
         self.viewport = (
