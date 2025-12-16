@@ -96,10 +96,12 @@ impl LineContent {
 struct FileLine {
     indent: String,
     content: LineContent,
+    length: usize,
 }
 
-static WS_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^(?<ws>\s*)(?<rest>\S+.*)$").expect("Should always compile"));
+static WHITESPACE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(?<whitespace>\s*)(?<rest>\S+.*)$").expect("Should always compile")
+});
 
 static ARRAY_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^-\ (?<value>.*)$").expect("Should always compile"));
@@ -115,9 +117,11 @@ impl FromStr for FileLine {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // SAFETY: unwraps on regex capture groups are generally safe as they would not be
         // available if the regex did not match
-        let (ws, rest) = match WS_REGEX.captures(s) {
+        let len = s.chars().count();
+
+        let (whitespace, rest) = match WHITESPACE_REGEX.captures(s) {
             Some(caps) => (
-                caps.name("ws")
+                caps.name("whitespace")
                     .ok_or(ParseFileError::MissingCaptureGroup)?
                     .as_str(),
                 caps.name("rest")
@@ -130,8 +134,9 @@ impl FromStr for FileLine {
         let content = rest.parse::<LineContent>()?;
 
         Ok(Self {
-            indent: ws.to_string(),
+            indent: whitespace.to_string(),
             content,
+            length: len,
         })
     }
 }
@@ -170,9 +175,7 @@ impl FileLines {
     }
 
     fn max_width(&self) -> usize {
-        self.0
-            .iter()
-            .fold(0, |acc, l| acc.max(l.render(false, 0).width()))
+        self.0.iter().fold(0, |acc, l| acc.max(l.length))
     }
 
     fn count(&self) -> usize {
