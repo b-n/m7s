@@ -7,8 +7,19 @@ use super::AppMode;
 
 #[derive(Debug)]
 pub enum Delta {
-    Inc(Option<usize>),
-    Dec(Option<usize>),
+    Inc(usize),
+    Dec(usize),
+    Zero,
+}
+
+impl From<&Delta> for isize {
+    fn from(delta: &Delta) -> Self {
+        match delta {
+            Delta::Inc(v) => 0isize.saturating_add_unsigned(*v),
+            Delta::Dec(v) => 0isize.saturating_sub_unsigned(*v),
+            Delta::Zero => 0,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -17,10 +28,10 @@ pub enum AppEvent {
     Exit,
     Submit,
     Load,
-    CursorY(isize),
+    CursorY(Delta),
     CursorX(Delta),
-    ScrollX(isize),
-    ScrollY(isize),
+    ScrollX(Delta),
+    ScrollY(Delta),
     TerminalResize,
     LoadSpec,
 }
@@ -52,18 +63,18 @@ fn handle_normal_mode(event: KeyEvent) -> Option<AppEvent> {
         (KeyCode::Char('q'), _) => Some(AppEvent::Exit),
         (KeyCode::Char('l'), KeyModifiers::CONTROL) => Some(AppEvent::Load),
         (KeyCode::Char('s'), KeyModifiers::CONTROL) => Some(AppEvent::LoadSpec),
-        (KeyCode::Char('K'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollY(-1)),
-        (KeyCode::Char('J'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollY(1)),
-        (KeyCode::Char('H'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(-1)),
-        (KeyCode::Char('L'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(1)),
-        (KeyCode::Up | KeyCode::Char('k'), _) => Some(AppEvent::CursorY(-1)),
-        (KeyCode::Down | KeyCode::Char('j'), _) => Some(AppEvent::CursorY(1)),
-        (KeyCode::Left | KeyCode::Char('h'), _) => Some(AppEvent::CursorX(Delta::Dec(None))),
-        (KeyCode::Right | KeyCode::Char('l'), _) => Some(AppEvent::CursorX(Delta::Inc(None))),
-        (KeyCode::PageUp, KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(-10)),
-        (KeyCode::PageDown, KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(10)),
-        (KeyCode::PageUp, _) => Some(AppEvent::ScrollY(-10)),
-        (KeyCode::PageDown, _) => Some(AppEvent::ScrollY(10)),
+        (KeyCode::Char('K'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollY(Delta::Dec(1))),
+        (KeyCode::Char('J'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollY(Delta::Inc(1))),
+        (KeyCode::Char('H'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(Delta::Dec(1))),
+        (KeyCode::Char('L'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(Delta::Inc(1))),
+        (KeyCode::Up | KeyCode::Char('k'), _) => Some(AppEvent::CursorY(Delta::Dec(1))),
+        (KeyCode::Down | KeyCode::Char('j'), _) => Some(AppEvent::CursorY(Delta::Inc(1))),
+        (KeyCode::Left | KeyCode::Char('h'), _) => Some(AppEvent::CursorX(Delta::Dec(1))),
+        (KeyCode::Right | KeyCode::Char('l'), _) => Some(AppEvent::CursorX(Delta::Inc(1))),
+        (KeyCode::PageUp, KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(Delta::Dec(10))),
+        (KeyCode::PageDown, KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(Delta::Inc(10))),
+        (KeyCode::PageUp, _) => Some(AppEvent::ScrollY(Delta::Dec(10))),
+        (KeyCode::PageDown, _) => Some(AppEvent::ScrollY(Delta::Inc(10))),
         _ => None,
     }
 }

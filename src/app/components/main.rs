@@ -105,19 +105,17 @@ impl AppComponent for Main {
                 // TODO: This should load a modal, not the file
                 self.load_file();
             }
-            AppEvent::CursorY(dy) => {
-                self.move_cursor(*dy);
+            AppEvent::CursorY(d) => self.move_cursor(d.into()),
+            AppEvent::ScrollX(d) => {
+                self.scroll(d.into(), 0);
             }
-            AppEvent::ScrollX(dx) => {
-                self.scroll(*dx, 0);
-            }
-            AppEvent::ScrollY(dy) => {
-                self.scroll(0, *dy);
+            AppEvent::ScrollY(d) => {
+                self.scroll(0, d.into());
             }
             AppEvent::CursorX(d) => {
                 self.cursor_pos.1 = match d {
                     Delta::Inc(_) => 1,
-                    Delta::Dec(_) => 0,
+                    _ => 0,
                 };
             }
             _ => return false,
