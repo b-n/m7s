@@ -1,9 +1,10 @@
-use log::debug;
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     style::{Color, Stylize},
-    text::Text,
-    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    text::{Line, Text},
+    widgets::{
+        Block, Borders, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
+    },
     Frame,
 };
 use std::path::PathBuf;
@@ -42,7 +43,7 @@ impl Main {
             (false, Delta::Dec(_)) => {
                 // Move cursor to bottom of viewport
                 self.vertical_scroll
-                    .saturating_add(self.viewport.1 as usize)
+                    .saturating_add(self.viewport.0 as usize)
                     .saturating_sub(1)
             }
             _ => current_pos,
@@ -55,16 +56,25 @@ impl Main {
         }
 
         // Scroll the view if the cursor left the viewport
+        log::debug!(
+            "Cursor Y: {cursor_y}, Vertical Scroll: {}, Viewport Height: {}",
+            self.vertical_scroll,
+            self.viewport.0
+        );
         if cursor_y < self.vertical_scroll {
             self.scroll_to(None, Some(cursor_y));
         } else if cursor_y
             >= self
                 .vertical_scroll
-                .saturating_add(self.viewport.1 as usize)
+                .saturating_add(self.viewport.0 as usize)
         {
             self.scroll_to(
                 None,
-                Some(cursor_y.saturating_sub(self.viewport.1 as usize)),
+                Some(
+                    cursor_y
+                        .saturating_sub(self.viewport.0 as usize)
+                        .saturating_add(1),
+                ),
             );
         }
 
@@ -118,24 +128,13 @@ impl Main {
         y >= self.vertical_scroll
             && y < self
                 .vertical_scroll
-                .saturating_add(self.viewport.1 as usize)
+                .saturating_add(self.viewport.0 as usize)
     }
 }
 
-impl AppComponent for Main {
+impl Main {
     #[allow(clippy::cast_possible_truncation)]
-    fn draw(&mut self, _mode: &AppMode, frame: &mut Frame, area: Rect) {
-        let [line_numbers, main_content] =
-            Layout::horizontal([Constraint::Length(6), Constraint::Min(1)]).areas(area);
-
-        // Height and width reduces by 1 for scrollbars
-        self.viewport = (
-            main_content.width.saturating_sub(1),
-            main_content.height.saturating_sub(1),
-        );
-
-        frame.render_widget(Block::new().bg(Color::DarkGray), line_numbers);
-
+    fn draw_content(&mut self, _mode: &AppMode, frame: &mut Frame, area: Rect) {
         if let Some(file) = &self.file {
             let (content, max_line) = file.display_lines(self.cursor_pos);
 
@@ -147,22 +146,67 @@ impl AppComponent for Main {
             let paragraph = Paragraph::new(Text::from(content))
                 .scroll((self.vertical_scroll as u16, self.horizontal_scroll as u16))
                 .block(block);
-            frame.render_widget(paragraph, main_content);
+            frame.render_widget(paragraph, area);
             frame.render_stateful_widget(
                 Scrollbar::new(ScrollbarOrientation::VerticalRight)
                     .begin_symbol(Some("↑"))
                     .end_symbol(Some("↓")),
-                main_content,
+                area,
                 &mut self.vertical_scroll_state,
             );
             frame.render_stateful_widget(
                 Scrollbar::new(ScrollbarOrientation::HorizontalBottom)
                     .begin_symbol(Some("←"))
                     .end_symbol(Some("→")),
-                main_content,
+                area,
                 &mut self.horizontal_scroll_state,
             );
         }
+    }
+
+    #[allow(clippy::cast_possible_truncation)]
+    fn draw_line_numbers(&self, _mode: &AppMode, frame: &mut Frame, area: Rect) {
+        let block = Block::new()
+            .bg(Color::Indexed(22))
+            .padding(Padding::right(1));
+
+        let text = if self.file.is_some() {
+            let top = self.vertical_scroll as u16;
+            let lines: Vec<Line<'_>> = (0..self.viewport.0)
+                .map(|i| {
+                    let line_no = i + top;
+                    let mut line = Line::from(format!("{line_no}").to_string());
+                    if line_no as usize == self.cursor_pos.0 {
+                        line = line.bg(Color::Indexed(236));
+                    }
+                    line
+                })
+                .collect();
+            Text::from(lines)
+        } else {
+            Text::from("0")
+        };
+
+        let paragraph = Paragraph::new(text).right_aligned().block(block);
+        frame.render_widget(paragraph, area);
+    }
+}
+
+impl AppComponent for Main {
+    #[allow(clippy::cast_possible_truncation)]
+    fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {
+        let [line_numbers, main_content] =
+            Layout::horizontal([Constraint::Length(6), Constraint::Min(1)]).areas(area);
+
+        // Height and width reduces by 1 for scrollbars
+        self.viewport = (
+            main_content.height.saturating_sub(1),
+            main_content.width.saturating_sub(1),
+        );
+
+        frame.render_widget(Block::new().bg(Color::Indexed(22)), line_numbers);
+        self.draw_content(mode, frame, main_content);
+        self.draw_line_numbers(mode, frame, line_numbers);
     }
 
     fn handle_event(&mut self, _mode: &AppMode, event: &AppEvent) -> bool {
