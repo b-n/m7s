@@ -924,6 +924,7 @@ dependencies = [
  "openapiv3",
  "ratatui",
  "regex",
+ "rowan",
  "serde",
  "serde_json",
  "thiserror",

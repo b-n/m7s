@@ -3,62 +3,170 @@ use ratatui::{
     style::{Color, Style, Stylize},
     text::{Line, Span},
 };
+use rowan::{ast::SyntaxNodePtr as RowanSyntaxNodePtr, NodeOrToken, WalkEvent};
 use std::path::PathBuf;
-use std::str::FromStr;
+use yaml_parser::{SyntaxKind, SyntaxNode, SyntaxToken, YamlLanguage};
 
-#[derive(thiserror::Error)]
-pub enum ParseFileError {
-    #[error("Capture group missing")]
-    MissingCaptureGroup,
-}
+type SyntaxNodePtr = RowanSyntaxNodePtr<YamlLanguage>;
 
-impl std::fmt::Debug for ParseFileError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{self}")
-    }
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct FileLine {
-    indent: String,
-    length: usize,
+    preceding_whitespace: Option<String>,
+    tokens: Vec<(SyntaxNodePtr, Vec<SyntaxToken>)>,
+    trailing_whitespace: Option<String>,
+}
+
+fn nearest_non_flow_ancestor(node: SyntaxNode) -> Option<SyntaxNode> {
+    if node.kind() == SyntaxKind::FLOW {
+        let parent = node
+            .parent()
+            .expect("All nodes should have parents")
+            .clone();
+        return nearest_non_flow_ancestor(parent);
+    }
+    Some(node)
+}
+
+fn is_selectable_kind(kind: SyntaxKind) -> bool {
+    matches!(
+        kind,
+        SyntaxKind::BLOCK_MAP_KEY | SyntaxKind::BLOCK_MAP_VALUE
+    )
 }
 
 impl FileLine {
-    fn render(&self, _cursor: (usize, usize)) -> Line<'_> {
-        todo!()
+    fn new() -> Self {
+        Self {
+            tokens: Vec::new(),
+            preceding_whitespace: None,
+            trailing_whitespace: None,
+        }
+    }
+
+    fn render(&self, current_line: usize, cursor: (usize, usize), ast: &SyntaxNode) -> Line<'_> {
+        let mut spans = Vec::new();
+
+        if let Some(ws) = &self.preceding_whitespace {
+            spans.push(Span::from(ws));
+        }
+
+        let mut selectable_values = 0;
+
+        for (parent, tokens) in &self.tokens {
+            let parent = nearest_non_flow_ancestor(parent.to_node(ast)).unwrap();
+
+            let mut s = String::new();
+            for token in tokens {
+                // Generate text
+                let text = token.text();
+                s += text;
+                if matches!(token.kind(), SyntaxKind::COLON | SyntaxKind::MINUS) {
+                    s += " ";
+                }
+            }
+            let span = Span::from(s);
+            debug!("Rendering span: {span:?}, Parent kind: {:?}", parent.kind());
+
+            // Apply styles
+            let mut span = match parent.kind() {
+                SyntaxKind::BLOCK_MAP_KEY => span.style(Style::default().bold().fg(Color::Yellow)),
+                _ => span,
+            };
+
+            // Highlight if needed
+            if is_selectable_kind(parent.kind()) {
+                if cursor.0 == current_line && cursor.1 == selectable_values {
+                    span = span.reversed();
+                }
+                selectable_values += 1;
+            }
+
+            // Add to line
+            spans.push(span);
+        }
+
+        if let Some(ws) = &self.trailing_whitespace {
+            spans.push(Span::from(ws));
+        }
+
+        Line::from(spans)
     }
 }
 
-/// Wrapper struc to implment FromStr which will use a yaml parser
-#[derive(Debug)]
-struct FileLines(Vec<FileLine>);
+fn tree_to_lines(tree: &SyntaxNode) -> Vec<FileLine> {
+    let mut lines = Vec::new();
+    let mut active_line = FileLine::new();
 
-impl FromStr for FileLines {
-    type Err = ParseFileError;
+    let mut last_node = SyntaxNodePtr::new(tree);
 
-    fn from_str(_s: &str) -> Result<Self, Self::Err> {
-        todo!()
+    let mut token_buffer: Vec<SyntaxToken> = Vec::new();
+
+    for event in tree.preorder_with_tokens() {
+        match event {
+            WalkEvent::Enter(element) => match element {
+                NodeOrToken::Node(node) => {
+                    debug!("++node: {node:?}");
+                    // Moving the parent down the tree
+                    last_node = SyntaxNodePtr::new(&node);
+                }
+                NodeOrToken::Token(token) => {
+                    debug!("++token: {token:?} {:?}", token.text());
+                    match token.kind() {
+                        SyntaxKind::WHITESPACE => {
+                            let mut split_newlines = token.text().split('\n').peekable();
+
+                            if split_newlines.peek().is_none() {
+                                // No newlines, just whitespace
+                                token_buffer.push(token.clone());
+                                continue;
+                            }
+
+                            // There is a newline, so we store the first part of the split in the
+                            // current line (could be trailing whitespace)
+                            if let Some(ws) = split_newlines.next() {
+                                active_line.trailing_whitespace = Some(ws.to_string());
+                            }
+                            // We then process all remaining parts. Each part drops any whitespace
+                            // into a new line
+                            for line in split_newlines {
+                                // Store the active token
+                                active_line.tokens.push((last_node, token_buffer.clone()));
+                                lines.push(active_line);
+
+                                token_buffer.clear();
+                                // Note, there is no need to store the extra whitespace as it's
+                                // own token, since we split it and add to preceding_whitespace
+                                active_line = FileLine::new();
+                                active_line.preceding_whitespace = Some(line.to_string());
+                            }
+                        }
+                        _ => {
+                            token_buffer.push(token.clone());
+                        }
+                    }
+                }
+            },
+            WalkEvent::Leave(element) => match element {
+                NodeOrToken::Node(node) => {
+                    debug!("--node {node:?}");
+
+                    // Move the last_node up the tree when exiting a node
+                    if let Some(parent) = node.parent() {
+                        last_node = SyntaxNodePtr::new(&parent);
+                    }
+                }
+                NodeOrToken::Token(token) => {
+                    // Exiting a token = flushing the buffered tokens
+                    active_line.tokens.push((last_node, token_buffer.clone()));
+                    token_buffer.clear();
+
+                    debug!("--token {:?}", token.kind());
+                }
+            },
+        }
     }
-}
 
-//impl IntoIterator for FileLines {
-//    type Item = FileLine;
-//    type IntoIter = std::vec::IntoIter<Self::Item>;
-//
-//    fn into_iter(self) -> Self::IntoIter {
-//        self.0.into_iter()
-//    }
-//}
-
-impl FileLines {
-    fn iter(&self) -> std::slice::Iter<'_, FileLine> {
-        self.0.iter()
-    }
-
-    fn len(&self) -> usize {
-        self.0.len()
-    }
+    lines
 }
 
 // TODO: Save file
@@ -68,7 +176,8 @@ pub struct File {
     pub max_width: usize,
     pub line_count: usize,
     raw: String,
-    lines: FileLines,
+    lines: Vec<FileLine>,
+    ast: SyntaxNode,
 }
 
 impl File {
@@ -76,8 +185,9 @@ impl File {
         debug!("Loading file");
         //TODO: Make this falliable
         let raw = std::fs::read_to_string(&path).unwrap();
-        let lines: FileLines = raw.parse().unwrap();
-        debug!("Parsed lines: {lines:#?}");
+
+        let ast = yaml_parser::parse(&raw).unwrap();
+        let lines = tree_to_lines(&ast);
 
         // TODO: Maybe a better way to handle this?
         //let max_width = lines.max_width();
@@ -86,32 +196,26 @@ impl File {
 
         Self {
             path,
-            lines,
             max_width,
             line_count,
             raw,
+            lines,
+            ast,
         }
     }
 
     pub fn render(&self, cursor: (usize, usize)) -> (Vec<Line<'_>>, usize) {
-        let lines = self.lines.iter().map(|line| line.render(cursor)).collect();
+        let lines = self
+            .lines
+            .iter()
+            .enumerate()
+            .map(|(i, line)| line.render(i, cursor, &self.ast))
+            .collect();
 
         (lines, self.max_width)
     }
 
     pub fn info(&self, _cursor: (usize, usize)) {
-        use yaml_parser::ast::AstNode;
-        let tree = yaml_parser::parse(&self.raw).unwrap();
-
-        let root_ast = <yaml_parser::ast::Root>::cast(tree).unwrap();
-        log::debug!("AST: {root_ast:#?}");
-
-        let docs = root_ast.documents();
-        log::debug!("Docs: {docs:#?}");
-
-        for doc in docs {
-            log::debug!("Doc: {doc:#?}");
-            log::debug!("Doc: {:?}", doc.syntax());
-        }
+        debug!("File path: {:?}", self.path);
     }
 }

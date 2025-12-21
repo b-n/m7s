@@ -206,6 +206,7 @@ impl IntoIterator for FileLines {
 
 // TODO: Save file
 #[derive(Debug)]
+#[allow(clippy::struct_field_names)]
 pub struct File {
     path: PathBuf,
     lines: FileLines,
