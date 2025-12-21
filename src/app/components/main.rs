@@ -136,7 +136,7 @@ impl Main {
     #[allow(clippy::cast_possible_truncation)]
     fn draw_content(&mut self, _mode: &AppMode, frame: &mut Frame, area: Rect) {
         if let Some(file) = &self.file {
-            let (content, max_line) = file.display_lines(self.cursor_pos);
+            let (content, max_line) = file.render(self.cursor_pos);
 
             self.vertical_scroll_state = self.vertical_scroll_state.content_length(content.len());
             self.horizontal_scroll_state = self.horizontal_scroll_state.content_length(max_line);
@@ -236,6 +236,7 @@ impl AppComponent for Main {
                     _ => 0,
                 };
             }
+            AppEvent::Info => self.file.as_ref().expect("").info(self.cursor_pos),
             _ => return false,
         }
         true

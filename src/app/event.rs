@@ -34,6 +34,7 @@ pub enum AppEvent {
     ScrollY(Delta),
     TerminalResize,
     LoadSpec,
+    Info,
 }
 
 pub fn handle_event(mode: &AppMode) -> io::Result<Option<AppEvent>> {
@@ -84,6 +85,7 @@ fn handle_input_mode(event: KeyEvent) -> Option<AppEvent> {
     match code {
         KeyCode::Esc => Some(AppEvent::ChangeMode(AppMode::Normal)),
         KeyCode::Enter => Some(AppEvent::Submit),
+        KeyCode::Char('i') => Some(AppEvent::Info),
         _ => None,
     }
 }

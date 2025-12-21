@@ -211,6 +211,7 @@ pub struct File {
     lines: FileLines,
     pub max_width: usize,
     pub line_count: usize,
+    file_contents: String,
 }
 
 impl File {
@@ -230,10 +231,15 @@ impl File {
             lines,
             max_width,
             line_count,
+            file_contents: contents,
         }
     }
 
-    pub fn display_lines(&self, cursor: (usize, usize)) -> (Vec<Line<'_>>, usize) {
+    pub fn render(&self, cursor: (usize, usize)) -> (Vec<Line<'_>>, usize) {
         self.lines.render(cursor)
+    }
+
+    pub fn info(&self, _cursor: (usize, usize)) {
+        todo!();
     }
 }
