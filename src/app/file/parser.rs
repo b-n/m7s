@@ -16,13 +16,13 @@ struct FileLine {
     trailing_whitespace: Option<String>,
 }
 
-fn nearest_non_flow_ancestor(node: SyntaxNode) -> Option<SyntaxNode> {
-    if node.kind() == SyntaxKind::FLOW {
+fn ancestor_not_kind(node: SyntaxNode, kind: SyntaxKind) -> Option<SyntaxNode> {
+    if node.kind() == kind {
         let parent = node
             .parent()
             .expect("All nodes should have parents")
             .clone();
-        return nearest_non_flow_ancestor(parent);
+        return ancestor_not_kind(parent, kind);
     }
     Some(node)
 }
@@ -30,7 +30,7 @@ fn nearest_non_flow_ancestor(node: SyntaxNode) -> Option<SyntaxNode> {
 fn is_selectable_kind(kind: SyntaxKind) -> bool {
     matches!(
         kind,
-        SyntaxKind::BLOCK_MAP_KEY | SyntaxKind::BLOCK_MAP_VALUE
+        SyntaxKind::BLOCK_MAP_KEY | SyntaxKind::BLOCK_MAP_VALUE | SyntaxKind::DOCUMENT
     )
 }
 
@@ -53,7 +53,9 @@ impl FileLine {
         let mut selectable_values = 0;
 
         for (parent, tokens) in &self.tokens {
-            let parent = nearest_non_flow_ancestor(parent.to_node(ast)).unwrap();
+            let parent_kind = ancestor_not_kind(parent.to_node(ast), SyntaxKind::FLOW)
+                .unwrap()
+                .kind();
 
             let mut s = String::new();
             for token in tokens {
@@ -65,16 +67,16 @@ impl FileLine {
                 }
             }
             let span = Span::from(s);
-            debug!("Rendering span: {span:?}, Parent kind: {:?}", parent.kind());
+            debug!("Rendering span: {span:?}, Parent kind: {parent_kind:?}");
 
             // Apply styles
-            let mut span = match parent.kind() {
+            let mut span = match parent_kind {
                 SyntaxKind::BLOCK_MAP_KEY => span.style(Style::default().bold().fg(Color::Yellow)),
                 _ => span,
             };
 
             // Highlight if needed
-            if is_selectable_kind(parent.kind()) {
+            if is_selectable_kind(parent_kind) {
                 if cursor.0 == current_line && cursor.1 == selectable_values {
                     span = span.reversed();
                 }
@@ -156,11 +158,16 @@ fn tree_to_lines(tree: &SyntaxNode) -> Vec<FileLine> {
                     }
                 }
                 NodeOrToken::Token(token) => {
-                    // Exiting a token = flushing the buffered tokens
-                    active_line.tokens.push((last_node, token_buffer.clone()));
-                    token_buffer.clear();
-
                     debug!("--token {:?}", token.kind());
+                    // Whitespace flushes itself, so we can skip it
+                    if token.kind() == SyntaxKind::WHITESPACE {
+                        // Whitespace tokens are handled on enter
+                        continue;
+                    }
+                    if !token_buffer.is_empty() {
+                        active_line.tokens.push((last_node, token_buffer.clone()));
+                        token_buffer.clear();
+                    }
                 }
             },
         }
