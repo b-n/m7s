@@ -1,0 +1,105 @@
+use super::utils::{ancestor_not_kind, is_selectable_kind};
+use ratatui::{
+    style::{Color, Style, Stylize},
+    text::{Line, Span},
+};
+use rowan::ast::SyntaxNodePtr as RowanSyntaxNodePtr;
+use yaml_parser::{SyntaxKind, SyntaxNode, SyntaxToken, YamlLanguage};
+
+type SyntaxNodePtr = RowanSyntaxNodePtr<YamlLanguage>;
+
+#[derive(Debug, Clone)]
+pub struct FileLine {
+    preceding_whitespace: Option<String>,
+    tokens: Vec<(SyntaxNodePtr, Vec<SyntaxToken>)>,
+    trailing_whitespace: Option<String>,
+    selectable_values: usize,
+}
+
+impl FileLine {
+    pub fn new(preceding_whitespace: Option<String>) -> Self {
+        Self {
+            tokens: Vec::new(),
+            preceding_whitespace,
+            trailing_whitespace: None,
+            selectable_values: 0,
+        }
+    }
+
+    pub fn trailing_whitespace(&mut self, ws: Option<String>) {
+        self.trailing_whitespace = ws;
+    }
+
+    pub fn add_tokens(
+        &mut self,
+        parent: SyntaxNodePtr,
+        tokens: Vec<SyntaxToken>,
+        ast: &SyntaxNode,
+    ) {
+        let parent =
+            SyntaxNodePtr::new(&ancestor_not_kind(parent.to_node(ast), SyntaxKind::FLOW).unwrap());
+
+        if is_selectable_kind(parent.kind()) {
+            self.selectable_values += 1;
+        }
+
+        self.tokens.push((parent, tokens));
+    }
+
+    pub fn render(&self, current_line: usize, cursor: (usize, usize)) -> Line<'_> {
+        let mut spans = Vec::new();
+
+        if let Some(ws) = &self.preceding_whitespace {
+            spans.push(Span::from(ws));
+        }
+
+        let mut selectable = 0;
+
+        for (parent, tokens) in &self.tokens {
+            let parent_kind = parent.kind();
+
+            let mut s = String::new();
+            for token in tokens {
+                // Generate text
+                let text = token.text();
+                s += text;
+                if matches!(token.kind(), SyntaxKind::COLON | SyntaxKind::MINUS) {
+                    s += " ";
+                }
+            }
+            let span = Span::from(s);
+
+            // Apply styles
+            let mut span = match parent_kind {
+                SyntaxKind::BLOCK_MAP_KEY => span.style(Style::default().bold().fg(Color::Yellow)),
+                _ => span,
+            };
+
+            // Highlight if needed
+            if is_selectable_kind(parent_kind) {
+                if cursor.0 == current_line {
+                    // Current line and value is selectable
+                    if cursor.1 == selectable {
+                        span = span.reversed();
+                    }
+                    // Ugly, but a fringe case, select the last selectable value
+                    if cursor.1 >= self.selectable_values
+                        && selectable + 1 == self.selectable_values
+                    {
+                        span = span.reversed();
+                    }
+                }
+                selectable += 1;
+            }
+
+            // Add to line
+            spans.push(span);
+        }
+
+        if let Some(ws) = &self.trailing_whitespace {
+            spans.push(Span::from(ws));
+        }
+
+        Line::from(spans)
+    }
+}
