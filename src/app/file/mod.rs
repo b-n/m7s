@@ -30,9 +30,7 @@ impl File {
         let ast = yaml_parser::parse(&raw).unwrap();
         let lines = tree_to_lines(&ast);
 
-        // TODO: Maybe a better way to handle this?
-        //let max_width = lines.max_width();
-        let max_width = 100;
+        let max_width = lines.iter().map(FileLine::length).max().unwrap_or(0);
         let line_count = lines.len();
 
         Self {

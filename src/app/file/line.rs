@@ -14,19 +14,28 @@ pub struct FileLine {
     tokens: Vec<(SyntaxNodePtr, Vec<SyntaxToken>)>,
     trailing_whitespace: Option<String>,
     selectable_values: usize,
+    length: usize,
 }
 
 impl FileLine {
     pub fn new(preceding_whitespace: Option<String>) -> Self {
+        let length = preceding_whitespace.as_ref().map_or(0, String::len);
+
         Self {
             tokens: Vec::new(),
             preceding_whitespace,
             trailing_whitespace: None,
             selectable_values: 0,
+            length,
         }
     }
 
+    pub fn length(&self) -> usize {
+        self.length
+    }
+
     pub fn trailing_whitespace(&mut self, ws: Option<String>) {
+        self.length += ws.as_ref().map_or(0, String::len);
         self.trailing_whitespace = ws;
     }
 
@@ -38,6 +47,8 @@ impl FileLine {
     ) {
         let parent =
             SyntaxNodePtr::new(&ancestor_not_kind(parent.to_node(ast), SyntaxKind::FLOW).unwrap());
+
+        self.length += tokens.iter().fold(0, |acc, token| acc + token.text().len());
 
         if is_selectable_kind(parent.kind()) {
             self.selectable_values += 1;
