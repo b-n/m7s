@@ -1,13 +1,14 @@
+#[allow(clippy::module_inception)]
+mod app;
 mod components;
 mod error;
 mod event;
 mod file;
 mod traits;
-mod ui;
 
+pub use app::App;
 pub use error::AppError;
 pub use traits::AppComponent;
-pub use ui::App;
 
 use event::{AppEvent, Delta};
 use file::File;
