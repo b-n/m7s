@@ -58,15 +58,11 @@ impl FileLine {
         for (parent, tokens) in &self.tokens {
             let parent_kind = parent.kind();
 
-            let mut s = String::new();
-            for token in tokens {
-                // Generate text
-                let text = token.text();
-                s += text;
-                if matches!(token.kind(), SyntaxKind::COLON | SyntaxKind::MINUS) {
-                    s += " ";
-                }
-            }
+            let s = tokens.iter().fold(String::new(), |mut acc, token| {
+                acc += token.text();
+                acc
+            });
+
             let span = Span::from(s);
 
             // Apply styles

@@ -108,6 +108,11 @@ fn tree_to_lines(tree: &SyntaxNode) -> Vec<FileLine> {
                         SyntaxKind::WHITESPACE => {
                             let mut split_newlines = token.text().split('\n').peekable();
 
+                            // Get the first element, it'll always have some value
+                            let ws = split_newlines
+                                .next()
+                                .expect("Whitespace elements should always have some value");
+
                             if split_newlines.peek().is_none() {
                                 // No newlines, just whitespace
                                 token_buffer.push(token.clone());
@@ -116,9 +121,8 @@ fn tree_to_lines(tree: &SyntaxNode) -> Vec<FileLine> {
 
                             // There is a newline, so we store the first part of the split in the
                             // current line (could be trailing whitespace)
-                            if let Some(ws) = split_newlines.next() {
-                                pending_line.trailing_whitespace(Some(ws.to_string()));
-                            }
+                            pending_line.trailing_whitespace(Some(ws.to_string()));
+
                             // We then process all remaining parts. Each part drops any whitespace
                             // into a new line
                             for line in split_newlines {
