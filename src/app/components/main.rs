@@ -223,6 +223,11 @@ impl AppComponent for Main {
                 // TODO: This should load a modal, not the file
                 self.load_file();
             }
+            AppEvent::Write => {
+                if let Some(file) = &mut self.file {
+                    file.write();
+                }
+            }
             AppEvent::CursorY(d) => self.move_cursor(d),
             AppEvent::ScrollX(d) => {
                 self.scroll(d.into(), 0);

@@ -35,6 +35,7 @@ pub enum AppEvent {
     TerminalResize,
     LoadSpec,
     Info,
+    Write,
 }
 
 pub fn handle_event(mode: &AppMode) -> io::Result<Option<AppEvent>> {
@@ -63,7 +64,8 @@ fn handle_normal_mode(event: KeyEvent) -> Option<AppEvent> {
         (KeyCode::Enter, _) => Some(AppEvent::ChangeMode(AppMode::Input)),
         (KeyCode::Char('q'), _) => Some(AppEvent::Exit),
         (KeyCode::Char('l'), KeyModifiers::CONTROL) => Some(AppEvent::Load),
-        (KeyCode::Char('s'), KeyModifiers::CONTROL) => Some(AppEvent::LoadSpec),
+        (KeyCode::Char('s'), KeyModifiers::CONTROL) => Some(AppEvent::Write),
+        (KeyCode::Char('s'), KeyModifiers::SHIFT) => Some(AppEvent::LoadSpec),
         (KeyCode::Char('K'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollY(Delta::Dec(1))),
         (KeyCode::Char('J'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollY(Delta::Inc(1))),
         (KeyCode::Char('H'), KeyModifiers::SHIFT) => Some(AppEvent::ScrollX(Delta::Dec(1))),

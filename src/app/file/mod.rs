@@ -17,7 +17,6 @@ pub struct File {
     path: PathBuf,
     pub max_width: usize,
     pub line_count: usize,
-    raw: String,
     lines: Vec<FileLine>,
     ast: SyntaxNode,
 }
@@ -40,7 +39,6 @@ impl File {
             path,
             max_width,
             line_count,
-            raw,
             lines,
             ast,
         }
@@ -58,7 +56,13 @@ impl File {
     }
 
     pub fn info(&self, _cursor: (usize, usize)) {
-        debug!("File path: {:?}", self.path);
+        debug!("File path: {self:?}");
+    }
+
+    pub fn write(&self) {
+        let output = self.ast.to_string();
+
+        std::fs::write(&self.path, output).unwrap();
     }
 }
 
