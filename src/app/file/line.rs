@@ -34,6 +34,21 @@ impl FileLine {
         self.length
     }
 
+    pub fn selectable_token_at(&self, index: usize) -> Option<SyntaxNodePtr> {
+        let mut selectable = 0;
+
+        for (parent, _) in &self.tokens {
+            if is_selectable_kind(parent.kind()) {
+                if selectable == index {
+                    return Some(*parent);
+                }
+                selectable += 1;
+            }
+        }
+
+        None
+    }
+
     pub fn trailing_whitespace(&mut self, ws: Option<String>) {
         self.length += ws.as_ref().map_or(0, String::len);
         self.trailing_whitespace = ws;

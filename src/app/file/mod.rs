@@ -53,8 +53,14 @@ impl File {
         (lines, self.max_width)
     }
 
-    pub fn info(&self, _cursor: (usize, usize)) {
-        debug!("File path: {self:?}");
+    pub fn info(&self, cursor: (usize, usize)) {
+        let token: Option<SyntaxNodePtr> = self
+            .lines
+            .get(cursor.0)
+            .and_then(|line| line.selectable_token_at(cursor.1));
+
+        debug!("Cursor: {cursor:?}");
+        debug!("Token: {token:?}");
     }
 
     pub fn write(&self) {
