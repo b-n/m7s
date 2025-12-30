@@ -11,13 +11,23 @@ pub use airline::Airline;
 pub use info::Info;
 pub use main::Main;
 
-use super::{AppComponent, AppEvent, AppMode};
+use super::{AppComponent, AppEvent, AppMode, AppState};
 
 #[derive(Default)]
 pub struct Components {
     main: Main,
     airline: Airline,
     info: Info,
+}
+
+impl Components {
+    pub fn new(state: AppState) -> Self {
+        Self {
+            main: Main::new(state.clone()),
+            airline: Airline::new(state.clone()),
+            info: Info::new(state.clone()),
+        }
+    }
 }
 
 impl AppComponent for Components {

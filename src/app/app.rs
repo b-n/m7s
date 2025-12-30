@@ -1,63 +1,78 @@
 use log::{debug, info};
 use ratatui::{backend::Backend, DefaultTerminal, Frame, Terminal};
+use std::cell::RefCell;
+use std::path::PathBuf;
+use std::rc::Rc;
 use tokio::time::{sleep, Duration};
 
 use crate::api_client::ApiClient;
 
-use super::components;
-use super::event::handle_event;
-use super::{AppComponent, AppError, AppEvent, AppMode};
+use super::{components, event::handle_event, AppComponent, AppError, AppEvent, AppMode, File};
+
+pub type AppState = Rc<RefCell<State>>;
 
 #[derive(Default)]
-struct AppState {
-    mode: AppMode,
+pub struct State {
     initialized: bool,
     dirty: bool,
     quitting: bool,
+    pub file: Option<File>,
 }
 
 pub struct App {
     api_client: ApiClient,
     state: AppState,
     components: components::Components,
+    mode: AppMode,
 }
 
 impl App {
     pub fn new(api_client: ApiClient) -> Self {
-        let state = AppState {
+        let state = Rc::new(RefCell::new(State {
             dirty: true,
-            ..AppState::default()
-        };
+            ..State::default()
+        }));
+
+        let components = components::Components::new(state.clone());
+
         App {
             api_client,
             state,
-            components: components::Components::default(),
+            mode: AppMode::Normal,
+            components,
         }
     }
 
     pub fn startup(&mut self) -> Result<DefaultTerminal, AppError> {
-        if self.state.initialized {
+        let mut state = self.state.borrow_mut();
+        if state.initialized {
             return Err(AppError::AlreadyInitialized);
         }
         let terminal = ratatui::init();
-        self.state.initialized = true;
+        state.initialized = true;
         Ok(terminal)
     }
 
     pub async fn run<T: Backend>(&mut self, mut terminal: Terminal<T>) -> Result<(), AppError> {
-        if !self.state.initialized {
+        if !self.state.borrow().initialized {
             return Err(AppError::NotInitialized);
         }
 
         loop {
             self.handle_event().await?;
 
-            if self.state.quitting {
+            // Needed to borrow state inside
+            let (quitting, dirty) = {
+                let state = self.state.borrow();
+                (state.quitting, state.dirty)
+            };
+
+            if quitting {
                 info! {"Quitting application..."}
                 break;
             }
 
-            if self.state.dirty {
+            if dirty {
                 terminal.draw(|frame| self.draw(frame))?;
             }
 
@@ -68,13 +83,25 @@ impl App {
     }
 
     pub fn shutdown(&mut self) {
-        self.state.initialized = false;
+        self.state.borrow_mut().initialized = false;
         ratatui::restore();
     }
 
+    fn load_file(&mut self) {
+        let path = PathBuf::from("./examples/long.yaml");
+        self.state.borrow_mut().file = Some(File::from_path(path));
+    }
+
+    fn write_file(&self) {
+        let mut state = self.state.borrow_mut();
+        if let Some(file) = &mut state.file {
+            file.write();
+        }
+    }
+
     async fn handle_event(&mut self) -> std::io::Result<()> {
-        if let Some(event) = handle_event(&self.state.mode)? {
-            self.state.dirty =
+        if let Some(event) = handle_event(&self.mode)? {
+            self.state.borrow_mut().dirty =
                 self.handle_app_events(&event).await || self.handle_component_events(&event);
         }
         Ok(())
@@ -83,7 +110,16 @@ impl App {
     async fn handle_app_events(&mut self, event: &AppEvent) -> bool {
         match event {
             AppEvent::ChangeMode(m) => {
-                self.state.mode = m.clone();
+                self.mode = m.clone();
+                true
+            }
+            AppEvent::Load => {
+                // TODO: This should load a modal, not the file
+                self.load_file();
+                true
+            }
+            AppEvent::Write => {
+                self.write_file();
                 true
             }
             AppEvent::TerminalResize => true,
@@ -108,7 +144,7 @@ impl App {
                 true
             }
             AppEvent::Exit => {
-                self.state.quitting = true;
+                self.state.borrow_mut().quitting = true;
                 true
             }
             _ => false,
@@ -117,11 +153,11 @@ impl App {
 
     fn handle_component_events(&mut self, event: &AppEvent) -> bool {
         // TODO: Allow components to push events too
-        self.components.handle_event(&self.state.mode, event)
+        self.components.handle_event(&self.mode, event)
     }
 
     fn draw(&mut self, frame: &mut Frame) {
-        self.components.draw(&self.state.mode, frame, frame.area());
-        self.state.dirty = false;
+        self.components.draw(&self.mode, frame, frame.area());
+        self.state.borrow_mut().dirty = false;
     }
 }

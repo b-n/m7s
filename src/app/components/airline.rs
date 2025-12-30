@@ -5,10 +5,16 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{AppComponent, AppMode};
+use crate::app::{AppComponent, AppMode, AppState};
 
 #[derive(Default)]
 pub struct Airline {}
+
+impl Airline {
+    pub fn new(_state: AppState) -> Self {
+        Self {}
+    }
+}
 
 impl AppComponent for Airline {
     fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {

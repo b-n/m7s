@@ -7,13 +7,12 @@ use ratatui::{
     },
     Frame,
 };
-use std::path::PathBuf;
 
-use crate::app::{AppComponent, AppEvent, AppMode, Delta, File};
+use crate::app::{AppComponent, AppEvent, AppMode, AppState, Delta};
 
 #[derive(Default)]
 pub struct Main {
-    file: Option<File>,
+    state: AppState,
     cursor_pos: (usize, usize),
     vertical_scroll_state: ScrollbarState,
     horizontal_scroll_state: ScrollbarState,
@@ -23,14 +22,21 @@ pub struct Main {
 }
 
 impl Main {
-    fn load_file(&mut self) {
-        let path = PathBuf::from("./examples/long.yaml");
-        self.file = Some(File::from_path(path));
+    pub fn new(state: AppState) -> Self {
+        Self {
+            state,
+            cursor_pos: (0, 0),
+            vertical_scroll_state: ScrollbarState::default(),
+            horizontal_scroll_state: ScrollbarState::default(),
+            vertical_scroll: 0,
+            horizontal_scroll: 0,
+            viewport: (0, 0),
+        }
     }
 
     fn move_cursor(&mut self, dy: &Delta) {
         // Do nothing if the file is not loaded
-        if self.file.is_none() {
+        if self.state.borrow().file.is_none() {
             return;
         }
 
@@ -50,7 +56,12 @@ impl Main {
         };
         // Clamp the cursor to the file length
         // Off by 1 due to 0 index
-        let line_count = self.file.as_ref().map_or(0, |f| f.line_count);
+        let line_count = self
+            .state
+            .borrow()
+            .file
+            .as_ref()
+            .map_or(0, |f| f.line_count);
         if cursor_y >= line_count {
             cursor_y = line_count - 1;
         }
@@ -108,6 +119,8 @@ impl Main {
         let mut horizontal_scroll = self.horizontal_scroll.saturating_add_signed(dx);
 
         let (file_width, file_length) = self
+            .state
+            .borrow()
             .file
             .as_ref()
             .map_or((0, 0), |f| (f.max_width, f.line_count));
@@ -135,7 +148,7 @@ impl Main {
 impl Main {
     #[allow(clippy::cast_possible_truncation)]
     fn draw_content(&mut self, _mode: &AppMode, frame: &mut Frame, area: Rect) {
-        if let Some(file) = &self.file {
+        if let Some(file) = &self.state.borrow().file {
             let (content, max_line) = file.render(self.cursor_pos);
 
             self.vertical_scroll_state = self.vertical_scroll_state.content_length(content.len());
@@ -170,20 +183,25 @@ impl Main {
             .bg(Color::Indexed(22))
             .padding(Padding::right(1));
 
-        let text = self.file.as_ref().map_or(Text::from("0"), |file| {
-            let top = self.vertical_scroll as u16;
-            let lines: Vec<Line<'_>> = (0..file.line_count)
-                .map(|i| {
-                    let line_no = i as u16 + top;
-                    let mut line = Line::from(format!("{line_no}").to_string());
-                    if line_no as usize == self.cursor_pos.0 {
-                        line = line.bg(Color::Indexed(236));
-                    }
-                    line
-                })
-                .collect();
-            Text::from(lines)
-        });
+        let text = self
+            .state
+            .borrow()
+            .file
+            .as_ref()
+            .map_or(Text::from("0"), |file| {
+                let top = self.vertical_scroll as u16;
+                let lines: Vec<Line<'_>> = (0..file.line_count)
+                    .map(|i| {
+                        let line_no = i as u16 + top;
+                        let mut line = Line::from(format!("{line_no}").to_string());
+                        if line_no as usize == self.cursor_pos.0 {
+                            line = line.bg(Color::Indexed(236));
+                        }
+                        line
+                    })
+                    .collect();
+                Text::from(lines)
+            });
 
         let paragraph = Paragraph::new(text).right_aligned().block(block);
         frame.render_widget(paragraph, area);
@@ -219,15 +237,6 @@ impl AppComponent for Main {
 
     fn handle_event(&mut self, _mode: &AppMode, event: &AppEvent) -> bool {
         match event {
-            AppEvent::Load => {
-                // TODO: This should load a modal, not the file
-                self.load_file();
-            }
-            AppEvent::Write => {
-                if let Some(file) = &mut self.file {
-                    file.write();
-                }
-            }
             AppEvent::CursorY(d) => self.move_cursor(d),
             AppEvent::ScrollX(d) => {
                 self.scroll(d.into(), 0);
@@ -241,7 +250,13 @@ impl AppComponent for Main {
                     _ => 0,
                 };
             }
-            AppEvent::Info => self.file.as_ref().expect("").info(self.cursor_pos),
+            AppEvent::Info => self
+                .state
+                .borrow()
+                .file
+                .as_ref()
+                .expect("")
+                .info(self.cursor_pos),
             _ => return false,
         }
         true

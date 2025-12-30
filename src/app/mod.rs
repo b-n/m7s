@@ -6,7 +6,7 @@ mod event;
 mod file;
 mod traits;
 
-pub use app::App;
+pub use app::{App, AppState};
 pub use error::AppError;
 pub use traits::AppComponent;
 
