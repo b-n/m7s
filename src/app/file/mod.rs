@@ -17,6 +17,7 @@ pub struct File {
     path: PathBuf,
     pub max_width: usize,
     pub line_count: usize,
+    pub max_selectable: usize,
     lines: Vec<FileLine>,
     ast: SyntaxNode,
 }
@@ -30,6 +31,7 @@ impl File {
         let ast = yaml_parser::parse(&raw).unwrap();
         let lines = tree_to_lines(&ast);
 
+        let max_selectable = lines.iter().map(FileLine::selectable).max().unwrap_or(0);
         let max_width = lines.iter().map(FileLine::length).max().unwrap_or(0);
         let line_count = lines.len();
 
@@ -37,6 +39,7 @@ impl File {
             path,
             max_width,
             line_count,
+            max_selectable,
             lines,
             ast,
         }

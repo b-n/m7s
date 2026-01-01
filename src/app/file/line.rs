@@ -13,7 +13,7 @@ pub struct FileLine {
     preceding_whitespace: Option<String>,
     tokens: Vec<(SyntaxNodePtr, Vec<SyntaxToken>)>,
     trailing_whitespace: Option<String>,
-    selectable_values: usize,
+    selectable: usize,
     length: usize,
 }
 
@@ -25,13 +25,17 @@ impl FileLine {
             tokens: Vec::new(),
             preceding_whitespace,
             trailing_whitespace: None,
-            selectable_values: 0,
+            selectable: 0,
             length,
         }
     }
 
     pub fn length(&self) -> usize {
         self.length
+    }
+
+    pub fn selectable(&self) -> usize {
+        self.selectable
     }
 
     pub fn selectable_token_at(&self, index: usize) -> Option<SyntaxNodePtr> {
@@ -66,7 +70,7 @@ impl FileLine {
         self.length += tokens.iter().fold(0, |acc, token| acc + token.text().len());
 
         if is_selectable_kind(parent.kind()) {
-            self.selectable_values += 1;
+            self.selectable += 1;
         }
 
         self.tokens.push((parent, tokens));
@@ -105,9 +109,7 @@ impl FileLine {
                         span = span.reversed();
                     }
                     // Ugly, but a fringe case, select the last selectable value
-                    if cursor.1 >= self.selectable_values
-                        && selectable + 1 == self.selectable_values
-                    {
+                    if cursor.1 >= self.selectable && selectable + 1 == self.selectable {
                         span = span.reversed();
                     }
                 }

@@ -34,7 +34,36 @@ impl Main {
         }
     }
 
-    fn move_cursor(&mut self, dy: &Delta) {
+    fn move_cursor_x(&mut self, dx: &Delta) {
+        // Do nothing if the file is not loaded
+        if self.state.borrow().file.is_none() {
+            return;
+        }
+
+        let max_selectable = self
+            .state
+            .borrow()
+            .file
+            .as_ref()
+            .map_or(0, |f| f.max_selectable);
+
+        let current_pos = self.cursor_pos.1;
+
+        self.cursor_pos.1 = match dx {
+            Delta::Inc(n) => {
+                let new_pos = current_pos.saturating_add(*n);
+                if new_pos >= max_selectable {
+                    max_selectable.saturating_sub(1)
+                } else {
+                    new_pos
+                }
+            }
+            Delta::Dec(n) => current_pos.saturating_sub(*n),
+            Delta::Zero => 0,
+        };
+    }
+
+    fn move_cursor_y(&mut self, dy: &Delta) {
         // Do nothing if the file is not loaded
         if self.state.borrow().file.is_none() {
             return;
@@ -237,7 +266,7 @@ impl AppComponent for Main {
 
     fn handle_event(&mut self, _mode: &AppMode, event: &AppEvent) -> bool {
         match event {
-            AppEvent::CursorY(d) => self.move_cursor(d),
+            AppEvent::CursorY(d) => self.move_cursor_y(d),
             AppEvent::ScrollX(d) => {
                 self.scroll(d.into(), 0);
             }
@@ -245,10 +274,7 @@ impl AppComponent for Main {
                 self.scroll(0, d.into());
             }
             AppEvent::CursorX(d) => {
-                self.cursor_pos.1 = match d {
-                    Delta::Inc(_) => 1,
-                    _ => 0,
-                };
+                self.move_cursor_x(d);
             }
             AppEvent::Info => self
                 .state

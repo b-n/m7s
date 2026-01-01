@@ -14,6 +14,9 @@ pub(crate) fn ancestor_not_kind(node: SyntaxNode, kind: SyntaxKind) -> Option<Sy
 pub(crate) fn is_selectable_kind(kind: SyntaxKind) -> bool {
     matches!(
         kind,
-        SyntaxKind::BLOCK_MAP_KEY | SyntaxKind::BLOCK_MAP_VALUE | SyntaxKind::DOCUMENT
+        SyntaxKind::BLOCK_MAP_KEY
+            | SyntaxKind::BLOCK_MAP_VALUE
+            | SyntaxKind::DOCUMENT
+            | SyntaxKind::COMMENT
     )
 }

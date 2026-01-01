@@ -11,7 +11,7 @@ use super::{components, event::handle_event, AppComponent, AppError, AppEvent, A
 
 pub type AppState = Rc<RefCell<State>>;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct State {
     initialized: bool,
     dirty: bool,
@@ -120,6 +120,10 @@ impl App {
             }
             AppEvent::Write => {
                 self.write_file();
+                true
+            }
+            AppEvent::DumpDebug => {
+                info!("App State: {:#?}", self.state.borrow());
                 true
             }
             AppEvent::TerminalResize => true,

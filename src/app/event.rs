@@ -36,6 +36,7 @@ pub enum AppEvent {
     LoadSpec,
     Info,
     Write,
+    DumpDebug,
 }
 
 pub fn handle_event(mode: &AppMode) -> io::Result<Option<AppEvent>> {
@@ -79,6 +80,7 @@ fn handle_normal_mode(event: KeyEvent) -> Option<AppEvent> {
         (KeyCode::PageUp, _) => Some(AppEvent::ScrollY(Delta::Dec(10))),
         (KeyCode::PageDown, _) => Some(AppEvent::ScrollY(Delta::Inc(10))),
         (KeyCode::Char('i'), _) => Some(AppEvent::Info),
+        (KeyCode::Char('d'), KeyModifiers::CONTROL) => Some(AppEvent::DumpDebug),
         _ => None,
     }
 }
