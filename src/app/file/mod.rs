@@ -46,14 +46,15 @@ impl File {
     }
 
     pub fn render(&self, cursor: (usize, usize)) -> (Vec<Line<'_>>, usize) {
-        let lines = self
-            .lines
-            .iter()
-            .enumerate()
-            .map(|(i, line)| line.render(i, cursor))
-            .collect();
+        //let lines = self
+        //    .lines
+        //    .iter()
+        //    .enumerate()
+        //    .map(|(i, line)| line.render(i, cursor))
+        //    .collect();
 
-        (lines, self.max_width)
+        //(lines, self.max_width)
+        tree_to_lines_two(&self.ast)
     }
 
     pub fn info(&self, cursor: (usize, usize)) {
@@ -175,4 +176,53 @@ fn tree_to_lines(tree: &SyntaxNode) -> Vec<FileLine> {
     }
 
     lines
+}
+
+fn tree_to_lines_two(tree: &SyntaxNode) -> (Vec<Line<'_>>, usize) {
+    let mut lines = Vec::new();
+    let mut max_width = 0;
+
+    let mut pending_line = String::new();
+
+    for event in tree.preorder_with_tokens() {
+        match event {
+            WalkEvent::Enter(element) => match element {
+                NodeOrToken::Node(node) => {
+                    debug!("++node: {node:?}");
+                }
+                NodeOrToken::Token(token) => {
+                    debug!("++token: {token:?} {:?}", token.text());
+
+                    let mut split_newlines = token.text().split('\n').peekable();
+
+                    // Get the first element, it'll always have some value
+                    let tok = split_newlines
+                        .next()
+                        .expect("Whitespace elements should always have some value");
+                    pending_line += tok;
+
+                    for line in split_newlines {
+                        let line_len = pending_line.len();
+                        if line_len > max_width {
+                            max_width = line_len;
+                        }
+                        lines.push(Line::from(pending_line));
+                        pending_line = line.to_string();
+                    }
+                }
+            },
+            WalkEvent::Leave(element) => match element {
+                NodeOrToken::Node(node) => {
+                    debug!("--node {node:?}");
+                }
+                NodeOrToken::Token(token) => {
+                    debug!("--token {:?}", token.kind());
+                }
+            },
+        }
+    }
+
+    lines.push(Line::from(pending_line));
+
+    (lines, max_width)
 }
