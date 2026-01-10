@@ -38,3 +38,13 @@ Notes:
   - `$SERVER/openapi/v3/api/v1` - gives the spec that the server has for core/v1 specs
   - `$SERVER/openapi/v3/apis/apps/v1` - gives the spec that the server has for apps/v1 as above
   - `$SERVER/openapi/v3/apis/<group>/<version>` - gives teh spec for the group and specific version
+
+## TODO
+
+- Editing:
+  - [ ] Edit a SyntaxToken in place
+  - [ ] Save back to a file
+- LSP:
+  - [ ] Getting kind from cursor position
+  - [ ] Get full openapiv3 spec for kind
+  - [ ] Get info of field at cursor position
