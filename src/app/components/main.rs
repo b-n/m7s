@@ -8,12 +8,14 @@ use ratatui::{
     Frame,
 };
 
+use crate::app::file::Direction;
 use crate::app::{AppComponent, AppEvent, AppMode, AppState, Delta};
 
 #[derive(Default)]
 pub struct Main {
     state: AppState,
-    cursor_pos: (usize, usize),
+    cursor_pos: u32,
+    cursor_line: usize,
     vertical_scroll_state: ScrollbarState,
     horizontal_scroll_state: ScrollbarState,
     vertical_scroll: usize,
@@ -25,7 +27,8 @@ impl Main {
     pub fn new(state: AppState) -> Self {
         Self {
             state,
-            cursor_pos: (0, 0),
+            cursor_pos: 0,
+            cursor_line: 0,
             vertical_scroll_state: ScrollbarState::default(),
             horizontal_scroll_state: ScrollbarState::default(),
             vertical_scroll: 0,
@@ -40,27 +43,28 @@ impl Main {
             return;
         }
 
-        let max_selectable = self
+        let dir = match dx {
+            Delta::Inc(n) => Direction::Right(*n),
+            Delta::Dec(n) => Direction::Left(*n),
+            Delta::Zero => Direction::Right(0),
+        };
+        self.cursor_pos = self
             .state
             .borrow()
             .file
             .as_ref()
-            .map_or(0, |f| f.max_selectable);
+            .expect("File is loaded")
+            .navigate_dir(self.cursor_pos, &dir);
+    }
 
-        let current_pos = self.cursor_pos.1;
-
-        self.cursor_pos.1 = match dx {
-            Delta::Inc(n) => {
-                let new_pos = current_pos.saturating_add(*n);
-                if new_pos >= max_selectable {
-                    max_selectable.saturating_sub(1)
-                } else {
-                    new_pos
-                }
-            }
-            Delta::Dec(n) => current_pos.saturating_sub(*n),
-            Delta::Zero => 0,
-        };
+    fn line_at(&self, cursor: Option<u32>) -> usize {
+        let cursor = cursor.unwrap_or(self.cursor_pos);
+        self.state
+            .borrow()
+            .file
+            .as_ref()
+            .expect("File is loaded")
+            .line_at_cursor(cursor)
     }
 
     fn move_cursor_y(&mut self, dy: &Delta) {
@@ -68,71 +72,85 @@ impl Main {
         if self.state.borrow().file.is_none() {
             return;
         }
-
-        let current_pos = self.cursor_pos.0;
-
-        let mut cursor_y = match (self.cursor_visible(), dy) {
-            (true, Delta::Inc(n)) => current_pos.saturating_add(*n),
-            (true, Delta::Dec(n)) => current_pos.saturating_sub(*n),
-            (false, Delta::Inc(_)) => self.vertical_scroll,
-            (false, Delta::Dec(_)) => {
-                // Move cursor to bottom of viewport
-                self.vertical_scroll
+        log::info!("Moving cursor Y by {dy:?}");
+        log::info!(
+            "From pos {}, cursor_visible {}, cursor_line {}",
+            self.cursor_pos,
+            self.cursor_visible(),
+            self.cursor_line,
+        );
+        let cursor = if self.cursor_visible() {
+            let dir = match dy {
+                Delta::Inc(n) => Direction::Down(*n),
+                Delta::Dec(n) => Direction::Up(*n),
+                Delta::Zero => Direction::Down(0),
+            };
+            self.state
+                .borrow()
+                .file
+                .as_ref()
+                .expect("File is loaded")
+                .navigate_dir(self.cursor_pos, &dir)
+        } else {
+            log::info!("Cursor not visible, moving to line");
+            let line = match dy {
+                Delta::Inc(_) => self.vertical_scroll,
+                Delta::Dec(_) => self
+                    .vertical_scroll
                     .saturating_add(self.viewport.0 as usize)
-                    .saturating_sub(1)
-            }
-            _ => current_pos,
+                    .saturating_sub(1),
+                Delta::Zero => self.cursor_line,
+            };
+            log::info!("Current line after move: {line}");
+            self.state
+                .borrow()
+                .file
+                .as_ref()
+                .expect("File is loaded")
+                .cursor_at_line(line)
         };
-        // Clamp the cursor to the file length
-        // Off by 1 due to 0 index
-        let line_count = self
-            .state
-            .borrow()
-            .file
-            .as_ref()
-            .map_or(0, |f| f.line_count);
-        if cursor_y >= line_count {
-            cursor_y = line_count - 1;
-        }
+
+        self.cursor_line = self.line_at(Some(cursor));
 
         // Scroll the view if the cursor left the viewport
-        log::debug!(
-            "Cursor Y: {cursor_y}, Vertical Scroll: {}, Viewport Height: {}",
-            self.vertical_scroll,
-            self.viewport.0
+        log::info!(
+            "To pos {cursor}, cursor_visible: {}, cursor_line: {}",
+            self.cursor_visible(),
+            self.cursor_line
         );
-        if cursor_y < self.vertical_scroll {
-            self.scroll_to(None, Some(cursor_y));
-        } else if cursor_y
+        if self.cursor_line < self.vertical_scroll {
+            self.scroll_to(Some(self.cursor_line), None);
+        } else if self.cursor_line
             >= self
                 .vertical_scroll
                 .saturating_add(self.viewport.0 as usize)
         {
             self.scroll_to(
-                None,
                 Some(
-                    cursor_y
+                    self.cursor_line
                         .saturating_sub(self.viewport.0 as usize)
                         .saturating_add(1),
                 ),
+                None,
             );
         }
 
         // Set the value
-        self.cursor_pos.0 = cursor_y;
+        self.cursor_pos = cursor;
     }
 
-    fn scroll_to(&mut self, x: Option<usize>, y: Option<usize>) {
-        match (x, y) {
-            (Some(x), Some(y)) => {
-                self.horizontal_scroll = x;
+    fn scroll_to(&mut self, y: Option<usize>, x: Option<usize>) {
+        log::info!("Scrolling to y: {y:?}, x: {x:?}");
+        match (y, x) {
+            (Some(y), Some(x)) => {
                 self.vertical_scroll = y;
-            }
-            (Some(x), None) => {
                 self.horizontal_scroll = x;
             }
-            (None, Some(y)) => {
+            (Some(y), None) => {
                 self.vertical_scroll = y;
+            }
+            (None, Some(x)) => {
+                self.horizontal_scroll = x;
             }
             _ => {}
         }
@@ -143,7 +161,7 @@ impl Main {
         self.vertical_scroll_state = self.vertical_scroll_state.position(self.vertical_scroll);
     }
 
-    fn scroll(&mut self, dx: isize, dy: isize) {
+    fn scroll(&mut self, dy: isize, dx: isize) {
         let mut vertical_scroll = self.vertical_scroll.saturating_add_signed(dy);
         let mut horizontal_scroll = self.horizontal_scroll.saturating_add_signed(dx);
 
@@ -152,7 +170,7 @@ impl Main {
             .borrow()
             .file
             .as_ref()
-            .map_or((0, 0), |f| (f.max_width, f.line_count));
+            .map_or((1, 1), |f| (f.max_width, f.line_count));
 
         if horizontal_scroll >= file_width {
             horizontal_scroll = file_width - 1;
@@ -162,15 +180,15 @@ impl Main {
             vertical_scroll = file_length - 1;
         }
 
-        self.scroll_to(Some(horizontal_scroll), Some(vertical_scroll));
+        self.scroll_to(Some(vertical_scroll), Some(horizontal_scroll));
     }
 
     fn cursor_visible(&self) -> bool {
-        let (y, _) = self.cursor_pos;
-        y >= self.vertical_scroll
-            && y < self
-                .vertical_scroll
-                .saturating_add(self.viewport.0 as usize)
+        self.cursor_line >= self.vertical_scroll
+            && self.cursor_line
+                < self
+                    .vertical_scroll
+                    .saturating_add(self.viewport.0 as usize)
     }
 }
 
@@ -178,7 +196,7 @@ impl Main {
     #[allow(clippy::cast_possible_truncation)]
     fn draw_content(&mut self, _mode: &AppMode, frame: &mut Frame, area: Rect) {
         if let Some(file) = &self.state.borrow().file {
-            let (content, max_line) = file.render(self.cursor_pos);
+            let (content, max_line) = file.render(self.cursor_pos.try_into().unwrap());
 
             self.vertical_scroll_state = self.vertical_scroll_state.content_length(content.len());
             self.horizontal_scroll_state = self.horizontal_scroll_state.content_length(max_line);
@@ -207,40 +225,44 @@ impl Main {
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    fn draw_line_numbers(&self, _mode: &AppMode, frame: &mut Frame, area: Rect) {
+    fn draw_line_numbers(&self, _mode: &AppMode, frame: &mut Frame, area: Rect, line_count: usize) {
         let block = Block::new()
             .bg(Color::Indexed(22))
             .padding(Padding::right(1));
 
-        let text = self
-            .state
-            .borrow()
-            .file
-            .as_ref()
-            .map_or(Text::from("0"), |file| {
-                let top = self.vertical_scroll as u16;
-                let lines: Vec<Line<'_>> = (0..file.line_count)
-                    .map(|i| {
-                        let line_no = i as u16 + top;
-                        let mut line = Line::from(format!("{line_no}").to_string());
-                        if line_no as usize == self.cursor_pos.0 {
-                            line = line.bg(Color::Indexed(236));
-                        }
-                        line
-                    })
-                    .collect();
-                Text::from(lines)
-            });
+        let top = self.vertical_scroll;
+        let lines: Vec<Line<'_>> = (top..line_count)
+            .map(|i| {
+                let line_no = i.saturating_add(1);
+                let mut line = Line::from(format!("{line_no}").to_string());
+                if i == self.cursor_line {
+                    line = line.bg(Color::Indexed(236));
+                }
+                line
+            })
+            .collect();
 
-        let paragraph = Paragraph::new(text).right_aligned().block(block);
+        let paragraph = Paragraph::new(Text::from(lines))
+            .right_aligned()
+            .block(block);
         frame.render_widget(paragraph, area);
     }
 }
 
 impl AppComponent for Main {
     #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_sign_loss)]
     fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {
-        #[allow(clippy::cast_sign_loss)]
+        let (line_count, max_width) = self
+            .state
+            .borrow()
+            .file
+            .as_ref()
+            .map_or((1, 1), |f| (f.line_count, f.max_width));
+
+        self.vertical_scroll_state = self.vertical_scroll_state.content_length(line_count);
+        self.horizontal_scroll_state = self.horizontal_scroll_state.content_length(max_width);
+
         // Calculate the width needed for line numbers based on max viewport size and current
         // scroll. log10 to get number of digits, truncated to remove decimal, and +3 (one for
         // digit, and 2 for padding)
@@ -261,17 +283,17 @@ impl AppComponent for Main {
 
         frame.render_widget(Block::new().bg(Color::Indexed(22)), line_numbers);
         self.draw_content(mode, frame, main_content);
-        self.draw_line_numbers(mode, frame, line_numbers);
+        self.draw_line_numbers(mode, frame, line_numbers, line_count);
     }
 
     fn handle_event(&mut self, _mode: &AppMode, event: &AppEvent) -> bool {
         match event {
             AppEvent::CursorY(d) => self.move_cursor_y(d),
             AppEvent::ScrollX(d) => {
-                self.scroll(d.into(), 0);
+                self.scroll(0, d.into());
             }
             AppEvent::ScrollY(d) => {
-                self.scroll(0, d.into());
+                self.scroll(d.into(), 0);
             }
             AppEvent::CursorX(d) => {
                 self.move_cursor_x(d);
