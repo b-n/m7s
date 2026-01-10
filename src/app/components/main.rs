@@ -235,7 +235,7 @@ impl Main {
             .map(|i| {
                 let line_no = i.saturating_add(1);
                 let mut line = Line::from(format!("{line_no}").to_string());
-                if line_no as u32 == self.cursor_pos {
+                if i == self.cursor_line {
                     line = line.bg(Color::Indexed(236));
                 }
                 line
