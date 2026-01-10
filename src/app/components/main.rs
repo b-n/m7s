@@ -230,12 +230,12 @@ impl Main {
             .bg(Color::Indexed(22))
             .padding(Padding::right(1));
 
-        let top = self.vertical_scroll as u16;
-        let lines: Vec<Line<'_>> = (0..line_count)
+        let top = self.vertical_scroll;
+        let lines: Vec<Line<'_>> = (top..line_count)
             .map(|i| {
-                let line_no = i as u16 + top;
+                let line_no = i.saturating_add(1);
                 let mut line = Line::from(format!("{line_no}").to_string());
-                if u32::from(line_no) == self.cursor_pos {
+                if line_no as u32 == self.cursor_pos {
                     line = line.bg(Color::Indexed(236));
                 }
                 line
