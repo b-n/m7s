@@ -15,34 +15,11 @@ Goals:
 - TUI interface for helping devs to generate manifests
 - Support of core kubernetes resources, along with CRDs
 - Loading and saving existing manifests whilst preserving formatting
-
-Non-goals:
-
-- YAML ast parser (although we might need to make one...)
+- Able to be called directly from `k9s`...
 
 # Meta
 
 This section should die hopefully...
-
-## YAML parsing
-
-`yaml_parser` crate seems to do the trick and provides a CST. It's built ontop of rowan which is
-used by rust-analyzer.
-
-At first glance it doesn't look it's possible to edit the CST, so this is mostly going to be useful
-only when doing yaml validation, and possibly openapiv3 schema validation. 
-
-Other things ruled out
-
-- https://crates.io/crates/yaml-edit
-  - Can't find the source anywhere, looks like author killed it?
-  - Can't handle objects in arrays. Get's into some sort of loop/pin's a core
-- serde-yaml
-  - Doesn't preserve formatting/whitespace/comments
-- https://crates.io/crates/rust-yaml
-  - Ported from a PyPI library by the looks
-  - No commits/updates since original posting
-  - Initial commit = the whole project. Will keep an eye to see if it ever gets updates.
 
 ## Links
 
