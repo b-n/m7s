@@ -16,8 +16,8 @@ pub(crate) type SyntaxNodePtr = RowanSyntaxNodePtr<YamlLanguage>;
 pub(crate) type TokenAtOffset = RowanTokenAtOffset<SyntaxToken>;
 
 use utils::{
-    ancestor_not_kind, line_at_cursor, node_dimensions, selectable_kind, token_at_cursor,
-    token_in_direction,
+    ancestor_not_kind, line_at_cursor, node_dimensions, selectable_kind,
+    selectable_token_in_direction, token_at_cursor,
 };
 
 // TODO: Save file
@@ -99,7 +99,7 @@ impl File {
         let current_token = token_at_cursor(&self.ast, current_cursor)
             .expect("Cursor should always be at a valid token");
 
-        token_in_direction(&current_token, direction)
+        selectable_token_in_direction(&current_token, direction)
             .text_range()
             .start()
             .into()

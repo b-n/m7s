@@ -112,93 +112,121 @@ fn first_selectable_in_line(token: &SyntaxToken) -> SyntaxToken {
     selected
 }
 
-pub(crate) fn token_in_direction(token: &SyntaxToken, dir: &Direction) -> SyntaxToken {
+// Handles vertical movements from a token
+fn selectable_y(token: &SyntaxToken, dir: &Direction) -> SyntaxToken {
     let mut selected = token.clone();
-    match dir {
-        Direction::Up(n) | Direction::Down(n) | Direction::Left(n) | Direction::Right(n)
-            if *n == 0 => {}
-        Direction::Up(n) => {
-            let mut newlines = 0;
-            let mut next_token = token.prev_token();
-            while let Some(ref next) = next_token {
-                if selectable_kind(next.kind()) {
-                    selected = next.clone();
-                }
-
-                if newlines >= *n {
-                    break;
-                }
-
-                if token_is_newlined_whitespace(next) {
-                    newlines += 1;
-                }
-
-                next_token = next.prev_token();
-            }
-
-            // The above will find the last token in the line. That feels weird. Use the first
-            // token instead
-            selected = first_selectable_in_line(&selected);
+    let mut newlines = 0;
+    let next_token = |token: SyntaxToken| -> Option<SyntaxToken> {
+        match dir {
+            Direction::Up(_) => token.prev_token(),
+            Direction::Down(_) => token.next_token(),
+            _ => unreachable!(),
         }
-        Direction::Down(n) => {
-            let mut newlines = 0;
-            let mut next_token = token.next_token();
-            while let Some(ref next) = next_token {
-                if selectable_kind(next.kind()) {
-                    selected = next.clone();
-                }
-                if newlines >= *n && selectable_kind(next.kind()) {
-                    break;
-                }
-                if token_is_newlined_whitespace(next) {
-                    newlines += 1;
-                }
+    };
 
-                next_token = next.next_token();
-            }
-            // If we didn't go anywhere, return the input value
-            if newlines == 0 {
-                return token.clone();
-            }
+    let target_newlines = match dir {
+        Direction::Up(n) | Direction::Down(n) => *n,
+        _ => unreachable!(),
+    };
+
+    // Move to the token that is at least target_newlines away
+    while let Some(ref next) = next_token(selected.clone()) {
+        if newlines >= target_newlines {
+            break;
         }
-        Direction::Right(n) => {
-            let mut tokens = 0;
-            let mut next_token = token.next_token();
-            while let Some(ref next) = next_token {
-                if selectable_kind(next.kind()) {
-                    selected = next.clone();
-                    tokens += 1;
-                    if tokens >= *n {
-                        break;
-                    }
-                }
-
-                if token_is_newlined_whitespace(next) {
-                    break;
-                }
-
-                next_token = next.next_token();
-            }
+        if token_is_newlined_whitespace(next) {
+            let text = next.text();
+            let without_newlines = text.replace('\n', "");
+            newlines += text.len() - without_newlines.len();
         }
-        Direction::Left(n) => {
-            let mut tokens = 0;
-            let mut next_token = token.prev_token();
-            while let Some(ref next) = next_token {
-                if selectable_kind(next.kind()) {
-                    selected = next.clone();
-                    tokens += 1;
-                    if tokens >= *n {
-                        break;
-                    }
-                }
+        selected = next.clone();
+    }
 
-                if token_is_newlined_whitespace(next) {
-                    break;
-                }
+    // Shortcircuit if no newlines were found
+    if newlines == 0 {
+        return selected;
+    }
 
-                next_token = next.prev_token();
+    // If we landed on a selectable token, return it
+    if selectable_kind(selected.kind()) {
+        return first_selectable_in_line(&selected);
+    }
+
+    // Otherwise, find the first selectable token we can find
+    while let Some(ref next) = next_token(selected.clone()) {
+        if selectable_kind(next.kind()) {
+            selected = next.clone();
+            break;
+        }
+        selected = next.clone();
+    }
+
+    // Fringe case, might have moved too far. Need to go backwards until we find something
+    if !selectable_kind(selected.kind()) {
+        while let Some(ref prev) = match dir {
+            Direction::Up(_) => selected.next_token(),
+            Direction::Down(_) => selected.prev_token(),
+            _ => unreachable!(),
+        } {
+            if selectable_kind(prev.kind()) {
+                selected = prev.clone();
+                break;
             }
+            selected = prev.clone();
         }
     }
+    first_selectable_in_line(&selected)
+}
+
+// Handles horizontal movements from a token
+fn selectable_x(token: &SyntaxToken, dir: &Direction) -> SyntaxToken {
+    let mut selected = token.clone();
+    let next_token = |token: &SyntaxToken| -> Option<SyntaxToken> {
+        match dir {
+            Direction::Left(_) => token.prev_token(),
+            Direction::Right(_) => token.next_token(),
+            _ => unreachable!(),
+        }
+    };
+    let mut tokens = 0;
+    let total_tokens = match dir {
+        Direction::Left(n) | Direction::Right(n) => *n,
+        _ => unreachable!(),
+    };
+
+    while let Some(ref next) = next_token(&selected) {
+        if selectable_kind(next.kind()) {
+            selected = next.clone();
+            tokens += 1;
+            if tokens >= total_tokens {
+                break;
+            }
+        }
+
+        if token_is_newlined_whitespace(next) {
+            break;
+        }
+
+        selected = next.clone();
+    }
+
+    // Went nowhere, return the original token
+    if tokens == 0 {
+        return token.clone();
+    }
+
     selected
+}
+
+// Assumption: The current token is always selectable
+pub(crate) fn selectable_token_in_direction(token: &SyntaxToken, dir: &Direction) -> SyntaxToken {
+    match dir {
+        Direction::Up(n) | Direction::Down(n) | Direction::Left(n) | Direction::Right(n)
+            if *n == 0 =>
+        {
+            token.clone()
+        }
+        Direction::Up(_) | Direction::Down(_) => selectable_y(token, dir),
+        Direction::Left(_) | Direction::Right(_) => selectable_x(token, dir),
+    }
 }
