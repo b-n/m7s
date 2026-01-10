@@ -90,8 +90,13 @@ pub(crate) fn token_at_cursor(
     }
 }
 
-fn token_is_newlined_whitespace(token: &SyntaxToken) -> bool {
-    token.kind() == SyntaxKind::WHITESPACE && token.text().contains('\n')
+fn whitespace_newlines(token: &SyntaxToken) -> Option<usize> {
+    if token.kind() != SyntaxKind::WHITESPACE {
+        return None;
+    }
+    let text = token.text();
+    let without_newlines = text.replace('\n', "");
+    Some(text.len() - without_newlines.len())
 }
 
 fn first_selectable_in_line(token: &SyntaxToken) -> SyntaxToken {
@@ -99,7 +104,9 @@ fn first_selectable_in_line(token: &SyntaxToken) -> SyntaxToken {
 
     let mut next_token = token.prev_token();
     while let Some(ref next) = next_token {
-        if token_is_newlined_whitespace(next) {
+        if let Some(n) = whitespace_newlines(next)
+            && n > 0
+        {
             break;
         }
         if selectable_kind(next.kind()) {
@@ -134,10 +141,8 @@ fn selectable_y(token: &SyntaxToken, dir: &Direction) -> SyntaxToken {
         if newlines >= target_newlines {
             break;
         }
-        if token_is_newlined_whitespace(next) {
-            let text = next.text();
-            let without_newlines = text.replace('\n', "");
-            newlines += text.len() - without_newlines.len();
+        if let Some(n) = whitespace_newlines(next) {
+            newlines += n;
         }
         selected = next.clone();
     }
@@ -203,7 +208,9 @@ fn selectable_x(token: &SyntaxToken, dir: &Direction) -> SyntaxToken {
             }
         }
 
-        if token_is_newlined_whitespace(next) {
+        if let Some(n) = whitespace_newlines(next)
+            && n > 0
+        {
             break;
         }
 
