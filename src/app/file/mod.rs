@@ -1,4 +1,4 @@
-use log::debug;
+use log::{debug, info};
 use ratatui::{
     style::{Style, Stylize},
     text::{Line, Span},
@@ -11,10 +11,12 @@ use std::path::PathBuf;
 use yaml_parser::{SyntaxKind, SyntaxNode, SyntaxToken, YamlLanguage};
 
 mod cursor;
+mod kube;
 mod nav;
 pub(crate) mod utils;
 
 use cursor::{line_at_cursor, token_at_cursor};
+use kube::KubeDetails;
 use nav::selectable_token_in_direction;
 pub use nav::Direction;
 use utils::{ancestor_not_kind, node_dimensions, selectable_kind};
@@ -115,10 +117,13 @@ impl File {
     }
 
     pub fn info(&self, cursor: u32) {
-        let token = token_at_cursor(&self.ast, cursor);
+        let token = token_at_cursor(&self.ast, cursor).expect("Should always have a token");
 
-        debug!("Cursor: {cursor:?}");
-        debug!("Token: {token:?}");
+        let kube_details: KubeDetails = (&token).try_into().unwrap();
+
+        info!("Kubernetes Details: {kube_details:?}");
+        info!("Cursor: {cursor:?}");
+        info!("Token: {token:?}");
     }
 
     /// Write the file to disk in the same location.

@@ -81,3 +81,13 @@ pub(crate) fn first_selectable_in_line(token: &SyntaxToken) -> SyntaxToken {
 
     selected
 }
+
+pub(crate) fn parent_node_until(start: &SyntaxNode, kind: SyntaxKind) -> Option<SyntaxNode> {
+    if start.kind() == kind {
+        return Some(start.clone());
+    }
+    match start.parent() {
+        Some(p) => parent_node_until(&p, kind),
+        None => None,
+    }
+}

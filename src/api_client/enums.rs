@@ -35,6 +35,15 @@ impl<'a> From<(&'a str, &'a str)> for ApiGroup {
 
 impl<'a> From<&'a str> for ApiGroup {
     fn from(input: &'a str) -> ApiGroup {
-        ApiGroup::Core(input.to_string())
+        if input == "v1" {
+            ApiGroup::Core(input.to_string())
+        } else {
+            let parts: Vec<&str> = input.split('/').collect();
+            if parts.len() == 2 {
+                ApiGroup::Named(parts[0].to_string(), parts[1].to_string())
+            } else {
+                ApiGroup::Named(input.to_string(), "v1".to_string())
+            }
+        }
     }
 }
