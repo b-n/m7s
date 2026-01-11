@@ -107,7 +107,7 @@ impl Main {
                 .file
                 .as_ref()
                 .expect("File is loaded")
-                .cursor_at_line(line)
+                .first_selectable_at_line(line)
         };
 
         self.cursor_line = self.line_at(Some(cursor));
