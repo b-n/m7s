@@ -24,6 +24,17 @@ use utils::{ancestor_not_kind, node_dimensions, selectable_kind};
 pub(crate) type SyntaxNodePtr = RowanSyntaxNodePtr<YamlLanguage>;
 pub(crate) type TokenAtOffset = RowanTokenAtOffset<SyntaxToken>;
 
+#[allow(clippy::enum_variant_names)]
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("File path not found: {0}")]
+    PathNotFound(PathBuf),
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("YAML parse error: {0}")]
+    YamlParseError(#[from] yaml_parser::SyntaxError),
+}
+
 // TODO: Save file
 #[derive(Debug, Clone)]
 pub struct File {
@@ -34,21 +45,23 @@ pub struct File {
 }
 
 impl File {
-    pub fn from_path(path: PathBuf) -> Self {
+    pub fn from_path(path: PathBuf) -> Result<Self, Error> {
         debug!("Loading file");
-        //TODO: Make this falliable
-        let raw = std::fs::read_to_string(&path).unwrap();
+        if !path.exists() {
+            Err(Error::PathNotFound(path.clone()))?;
+        }
+        let raw = std::fs::read_to_string(&path)?;
 
-        let ast = yaml_parser::parse(&raw).unwrap();
+        let ast = yaml_parser::parse(&raw)?;
 
         let (line_count, max_width) = node_dimensions(&ast);
 
-        Self {
+        Ok(Self {
             path,
             max_width,
             line_count,
             ast,
-        }
+        })
     }
 
     /// Generate Ratatui lines from loaded file.

@@ -43,11 +43,16 @@ impl App {
         }
     }
 
-    pub fn startup(&mut self) -> Result<DefaultTerminal, AppError> {
+    pub fn startup(&mut self, file: Option<PathBuf>) -> Result<DefaultTerminal, AppError> {
         let mut state = self.state.borrow_mut();
         if state.initialized {
             return Err(AppError::AlreadyInitialized);
         }
+
+        if let Some(path) = file {
+            state.file = Some(File::from_path(path)?);
+        }
+
         let terminal = ratatui::init();
         state.initialized = true;
         Ok(terminal)
@@ -87,9 +92,10 @@ impl App {
         ratatui::restore();
     }
 
-    fn load_file(&mut self) {
+    fn load_file(&mut self) -> Result<(), AppError> {
         let path = PathBuf::from("./examples/long.yaml");
-        self.state.borrow_mut().file = Some(File::from_path(path));
+        self.state.borrow_mut().file = Some(File::from_path(path)?);
+        Ok(())
     }
 
     fn write_file(&self) {
@@ -115,7 +121,12 @@ impl App {
             }
             AppEvent::Load => {
                 // TODO: This should load a modal, not the file
-                self.load_file();
+                match self.load_file() {
+                    Ok(()) => {}
+                    Err(_e) => {
+                        todo!()
+                    }
+                }
                 true
             }
             AppEvent::Write => {

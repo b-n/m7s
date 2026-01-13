@@ -6,6 +6,8 @@ pub enum AppError {
     NotInitialized,
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
+    #[error("File error: {0}")]
+    FileError(#[from] super::file::Error),
 }
 
 impl std::fmt::Debug for AppError {

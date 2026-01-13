@@ -29,13 +29,15 @@ struct CliConfig {
 
     /// File to edit
     #[arg(value_name = "FILE")]
-    file: Option<PathBuf>,
+    pub file: Option<PathBuf>,
 }
 
+#[allow(clippy::struct_field_names)]
 #[derive(Debug)]
 pub struct Config {
     pub context: String,
     pub kube_config: Kubeconfig,
+    pub file: Option<PathBuf>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -86,5 +88,6 @@ pub fn parse() -> Result<Config, ConfigError> {
     Ok(Config {
         context,
         kube_config,
+        file: cli.file,
     })
 }
