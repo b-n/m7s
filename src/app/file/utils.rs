@@ -15,7 +15,11 @@ pub(crate) fn ancestor_not_kind(node: SyntaxNode, kind: SyntaxKind) -> Option<Sy
 pub(crate) fn selectable_kind(kind: SyntaxKind) -> bool {
     matches!(
         kind,
-        SyntaxKind::COMMENT | SyntaxKind::BLOCK_SCALAR_TEXT | SyntaxKind::PLAIN_SCALAR
+        SyntaxKind::COMMENT
+            | SyntaxKind::BLOCK_SCALAR_TEXT
+            | SyntaxKind::PLAIN_SCALAR
+            | SyntaxKind::DOUBLE_QUOTED_SCALAR
+            | SyntaxKind::SINGLE_QUOTED_SCALAR
     )
 }
 
