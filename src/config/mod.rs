@@ -1,8 +1,6 @@
 use clap::Parser;
 use kube_client::config::Kubeconfig;
 use log::debug;
-use std::error::Error;
-use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::{env, path::PathBuf};
 
 fn get_default_kube_config_path() -> PathBuf {
@@ -34,33 +32,21 @@ pub struct Config {
     pub kube_config: Kubeconfig,
 }
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum ConfigError {
+    #[error("Kube config file not found: {0}")]
     MissingKubeConfig(PathBuf),
+    #[error("Invalid context, ensure it is part of your kube config: {0}")]
     InvalidContext(String),
 }
 
-impl Display for ConfigError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            ConfigError::MissingKubeConfig(path) => {
-                write!(f, "Kube config file not found: {}", path.display())
-            }
-            ConfigError::InvalidContext(ctx) => write!(f, "Invalid context: {ctx}"),
-        }
-    }
-}
-
-impl Error for ConfigError {}
-
-pub fn config() -> Result<Config, ConfigError> {
+pub fn parse() -> Result<Config, ConfigError> {
     debug!("Loading config");
     let cli = CliConfig::parse();
     debug!("CLI Config: {cli:?}");
 
     // Load kube config
     let kube_config_path = if cli.kube_config.is_relative() {
-        debug!("meow");
         env::current_dir()
             .expect("Could not get current directory")
             .join(cli.kube_config)
@@ -82,9 +68,7 @@ pub fn config() -> Result<Config, ConfigError> {
         kube_config
             .current_context
             .clone()
-            .ok_or(ConfigError::InvalidContext(
-                "Ensure a context is provided or selected in your kube configuration".to_string(),
-            ))?
+            .ok_or(ConfigError::InvalidContext("none".to_string()))?
             .to_string()
     };
     debug!("Using context: {context}");

@@ -10,7 +10,7 @@ use error::Error;
 async fn main() -> Result<(), Error> {
     logging::init_logging();
 
-    let config = config::config()?;
+    let config = config::parse()?;
 
     let client = api_client::from_config(&config).await?;
 
