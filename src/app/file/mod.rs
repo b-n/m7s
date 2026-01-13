@@ -67,36 +67,51 @@ impl File {
 
     /// Return byte position for the first selectable element on a specific line.
     /// Newline is defined by `\n` characters.
+    /// If there are not selectable tokens on or after that line, it will search backwards until
+    /// one is found.
     ///
     /// `line` is 0-indexed line number in the file.
     pub fn first_selectable_at_line(&self, line: usize) -> u32 {
         let mut line_count = 0;
-        let mut selected = token_at_cursor(&self.ast, 0);
+        let mut selected =
+            token_at_cursor(&self.ast, 0).expect("All files have at least one token");
+
+        let next = |token: &SyntaxToken| token.next_token();
+        let prev = |token: &SyntaxToken| token.prev_token();
 
         // scroll to the line
-        while let Some(ref next) = selected {
-            let text = next.text();
+        while let Some(ref token) = next(&selected) {
+            let text = token.text();
             line_count += text.chars().filter(|c| *c == '\n').count();
             if line_count >= line {
                 break;
             }
 
-            selected = next.next_token();
+            selected = token.clone();
         }
 
         // Find the first selectable token
-        while let Some(ref next) = selected {
-            if selectable_kind(next.kind()) {
+        while let Some(ref token) = next(&selected) {
+            selected = token.clone();
+            if selectable_kind(token.kind()) {
+                log::info!("BREAK1");
                 break;
             }
-            selected = next.next_token();
         }
 
-        selected
-            .expect("Should always have a token")
-            .text_range()
-            .start()
-            .into()
+        // It's possible we're at EOF and there are no selectable tokens. In that case, search
+        // backwards.
+        if !selectable_kind(selected.kind()) {
+            while let Some(ref token) = prev(&selected) {
+                selected = token.clone();
+                if selectable_kind(token.kind()) {
+                    log::info!("BREAK2");
+                    break;
+                }
+            }
+        }
+
+        selected.text_range().start().into()
     }
 
     /// Given a current position in a file, find the next cursor position in the given direction.
