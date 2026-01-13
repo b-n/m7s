@@ -1,6 +1,5 @@
 use clap::Parser;
 use kube_client::config::Kubeconfig;
-use log::debug;
 use std::{env, path::PathBuf};
 
 fn get_default_kube_config_path() -> PathBuf {
@@ -16,14 +15,21 @@ fn get_default_kube_config_path() -> PathBuf {
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct CliConfig {
+    /// Path to m7s config file
     #[arg(short, long, value_name = "FILE")]
     config: Option<PathBuf>,
 
+    /// Kubernetes context to use
     #[arg(long, value_name = "context")]
     context: Option<String>,
 
+    /// The path to kubeconfig
     #[arg(long, value_name = "PATH", default_value = get_default_kube_config_path().into_os_string())]
     kube_config: PathBuf,
+
+    /// File to edit
+    #[arg(value_name = "FILE")]
+    file: Option<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -36,14 +42,14 @@ pub struct Config {
 pub enum ConfigError {
     #[error("Kube config file not found: {0}")]
     MissingKubeConfig(PathBuf),
-    #[error("Invalid context, ensure it is part of your kube config: {0}")]
+    #[error("Failed to read kube config: {0}")]
+    KubeConfigReadError(#[from] kube_client::config::KubeconfigError),
+    #[error("Invalid context: {0}")]
     InvalidContext(String),
 }
 
 pub fn parse() -> Result<Config, ConfigError> {
-    debug!("Loading config");
     let cli = CliConfig::parse();
-    debug!("CLI Config: {cli:?}");
 
     // Load kube config
     let kube_config_path = if cli.kube_config.is_relative() {
@@ -53,25 +59,29 @@ pub fn parse() -> Result<Config, ConfigError> {
     } else {
         cli.kube_config
     };
-    debug!("Kube config path: {}", kube_config_path.display());
 
     if !kube_config_path.exists() {
         Err(ConfigError::MissingKubeConfig(kube_config_path.clone()))?;
     }
-    debug!("kube config path exists, loading...");
 
-    let kube_config = Kubeconfig::read_from(kube_config_path).unwrap();
+    let kube_config = Kubeconfig::read_from(kube_config_path)?;
 
-    let context = if let Some(ctx) = cli.context {
-        ctx
-    } else {
-        kube_config
-            .current_context
-            .clone()
-            .ok_or(ConfigError::InvalidContext("none".to_string()))?
-            .to_string()
-    };
-    debug!("Using context: {context}");
+    let context =
+        if let Some(ctx) = cli.context {
+            kube_config.contexts.iter().find(|c| c.name == ctx).ok_or(
+                ConfigError::InvalidContext(format!("'{ctx}' not found in kubeconfig")),
+            )?;
+
+            ctx
+        } else {
+            kube_config
+                .current_context
+                .clone()
+                .ok_or(ConfigError::InvalidContext(
+                    "Could not read current_context".to_string(),
+                ))?
+                .to_string()
+        };
 
     Ok(Config {
         context,
