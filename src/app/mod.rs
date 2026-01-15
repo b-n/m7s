@@ -13,7 +13,7 @@ pub use traits::AppComponent;
 use event::{AppEvent, Delta};
 use file::File;
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub enum AppMode {
     #[default]
     Normal,

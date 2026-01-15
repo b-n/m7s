@@ -37,6 +37,7 @@ pub enum AppEvent {
     Info,
     Write,
     DumpDebug,
+    Raw(KeyEvent),
 }
 
 pub fn handle_event(mode: &AppMode) -> io::Result<Option<AppEvent>> {
@@ -44,9 +45,14 @@ pub fn handle_event(mode: &AppMode) -> io::Result<Option<AppEvent>> {
         Ok(true) => {
             let event = match event::read()? {
                 Event::Resize(_, _) => Some(AppEvent::TerminalResize),
-                Event::Key(key_event) if key_event.kind == KeyEventKind::Press => match mode {
-                    AppMode::Normal => handle_normal_mode(key_event),
-                    AppMode::Input => handle_input_mode(key_event),
+                Event::Key(key_event)
+                    if key_event.kind == KeyEventKind::Press && *mode == AppMode::Normal =>
+                {
+                    handle_normal_mode(key_event)
+                }
+                Event::Key(key_event) => match mode {
+                    AppMode::Normal => None,
+                    AppMode::Input => Some(handle_input_mode(key_event)),
                     AppMode::Command => handle_command_mode(key_event),
                 },
                 _ => None,
@@ -85,13 +91,13 @@ fn handle_normal_mode(event: KeyEvent) -> Option<AppEvent> {
     }
 }
 
-fn handle_input_mode(event: KeyEvent) -> Option<AppEvent> {
+fn handle_input_mode(event: KeyEvent) -> AppEvent {
     let code = event.code;
+    let is_key_press = event.kind == KeyEventKind::Press;
     match code {
-        KeyCode::Esc => Some(AppEvent::ChangeMode(AppMode::Normal)),
-        KeyCode::Enter => Some(AppEvent::Submit),
-        KeyCode::Char('i') => Some(AppEvent::Info),
-        _ => None,
+        KeyCode::Esc if is_key_press => AppEvent::ChangeMode(AppMode::Normal),
+        KeyCode::Enter if is_key_press => AppEvent::Submit,
+        _ => AppEvent::Raw(event),
     }
 }
 
