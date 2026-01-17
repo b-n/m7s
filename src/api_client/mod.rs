@@ -1,6 +1,4 @@
-use futures::future::join_all;
 use http::Request;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1 as k8s_meta_v1;
 use kube_client::{
     client::Body as KubeBody,
     config::{Config as KubeConfig, KubeConfigOptions},
@@ -8,7 +6,6 @@ use kube_client::{
 };
 use log::debug;
 use openapiv3::OpenAPI;
-use std::collections::HashMap;
 
 use crate::config::Config;
 
@@ -21,16 +18,8 @@ pub use error::Error;
 use spec::GroupSpec;
 pub use spec::QueryPath;
 
-#[derive(Debug, Default)]
-struct ApiClientCache {
-    core_resources: HashMap<String, Vec<k8s_meta_v1::APIResource>>,
-    group_resources: HashMap<String, k8s_meta_v1::APIResource>,
-    initialized: bool,
-}
-
 pub struct ApiClient {
     client: KubeClient,
-    cache: ApiClientCache,
     response_cache: std::collections::HashMap<String, bytes::Bytes>,
 }
 
@@ -48,52 +37,11 @@ pub async fn from_config(config: &Config) -> Result<ApiClient, Error> {
 
     Ok(ApiClient {
         client,
-        cache: ApiClientCache::default(),
         response_cache: std::collections::HashMap::new(),
     })
 }
 
 impl ApiClient {
-    // TODO: Rethink the kind/group caching logic. Theory: people only care about kinds, not
-    // groups. Have a look at kube_client::discovery since that might do it all for us.
-    async fn populate_cache(&mut self) -> Result<(), Error> {
-        if self.cache.initialized {
-            return Ok(());
-        }
-
-        let core_versions = self.client.list_core_api_versions().await?.versions;
-
-        self.cache.core_resources = join_all(core_versions.iter().map(|version| async {
-            self.client
-                .list_core_api_resources(version)
-                .await
-                .map(|res| (res.group_version, res.resources))
-        }))
-        .await
-        // collect for resolving the results
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?
-        // collect for (k,v) into HashMap
-        .into_iter()
-        .collect();
-
-        Ok(())
-    }
-
-    pub async fn get_kinds(&mut self) -> Result<Vec<String>, Error> {
-        self.populate_cache().await?;
-
-        let kinds = self
-            .cache
-            .core_resources
-            .values()
-            .flatten()
-            .map(|res| res.kind.clone())
-            .collect();
-
-        Ok(kinds)
-    }
-
     pub async fn get_group_spec(&mut self, group: &ApiGroup) -> Result<GroupSpec, Error> {
         debug!("Getting spec for {group}");
 
