@@ -10,21 +10,26 @@ keywords = ["kubernetes", "manifests", "cli"]
 categories = ["command-line-utilities"]
 
 [dependencies]
+# Runtime, logging, errors
+tokio = { version = "1.47.1", features = ["full"] }
+futures = { version = "0.3.31" }
 log = { version = "0.4.28" }
 env_logger = { version = "0.11.8" }
+thiserror = { version = "2.0.16" }
+# CLI Parsing
 clap = { version = "4.5.47", features = ["derive", "string"] }
+# UI
 ratatui = { version = "0.29.0", features = ["crossterm"] }
+tui-textarea = { version = "0.7.0" }
+# Kubernetes & API
 kube-client = { version = "2.0.1", features = ["rustls-tls"] }
 k8s-openapi = { version = "0.26.0", features = ["v1_30"] } # Required by kube-client
-tokio = { version = "1.47.1", features = ["full"] }
-thiserror = { version = "2.0.16" }
-futures = { version = "0.3.31" }
-regex = { version = "1.11.2" }
 openapiv3 = { version = "2.2.0" }
 http = { version = "1.3.1" }
+bytes = { version = "1.10.1" }
+# Parsing
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.145" }
-bytes = { version = "1.10.1" }
 yaml_parser = { version = "0.2.3" }
 rowan = { version = "0.16.1"}
 
