@@ -12,10 +12,16 @@ use crate::app::file::Direction;
 use crate::app::{AppComponent, AppEvent, AppMode, AppState, Delta};
 
 #[derive(Default)]
+struct CursorState {
+    byte_offset: u32,
+    line: usize,
+}
+
+#[derive(Default)]
+
 pub struct Main {
     state: AppState,
-    cursor_pos: u32,
-    cursor_line: usize,
+    cursor: CursorState,
     vertical_scroll_state: ScrollbarState,
     horizontal_scroll_state: ScrollbarState,
     vertical_scroll: usize,
@@ -27,8 +33,7 @@ impl Main {
     pub fn new(state: AppState) -> Self {
         Self {
             state,
-            cursor_pos: 0,
-            cursor_line: 0,
+            cursor: CursorState::default(),
             vertical_scroll_state: ScrollbarState::default(),
             horizontal_scroll_state: ScrollbarState::default(),
             vertical_scroll: 0,
@@ -37,6 +42,28 @@ impl Main {
         }
     }
 
+    fn set_cursor(&mut self, byte_offset: u32) {
+        self.cursor.byte_offset = byte_offset;
+        self.cursor.line = self
+            .state
+            .borrow()
+            .file
+            .as_ref()
+            .expect("File is loaded")
+            .line_at_cursor(self.cursor.byte_offset);
+    }
+
+    fn cursor_visible(&self) -> bool {
+        self.cursor.line >= self.vertical_scroll
+            && self.cursor.line
+                < self
+                    .vertical_scroll
+                    .saturating_add(self.viewport.0 as usize)
+    }
+}
+
+// Movement/scroll helpers
+impl Main<'_> {
     fn move_cursor_x(&mut self, dx: &Delta) {
         // Do nothing if the file is not loaded
         if self.state.borrow().file.is_none() {
@@ -48,23 +75,14 @@ impl Main {
             Delta::Dec(n) => Direction::Left(*n),
             Delta::Zero => Direction::Right(0),
         };
-        self.cursor_pos = self
+
+        self.cursor.byte_offset = self
             .state
             .borrow()
             .file
             .as_ref()
             .expect("File is loaded")
-            .navigate_dir(self.cursor_pos, &dir);
-    }
-
-    fn line_at(&self, cursor: Option<u32>) -> usize {
-        let cursor = cursor.unwrap_or(self.cursor_pos);
-        self.state
-            .borrow()
-            .file
-            .as_ref()
-            .expect("File is loaded")
-            .line_at_cursor(cursor)
+            .navigate_dir(self.cursor.byte_offset, &dir);
     }
 
     fn move_cursor_y(&mut self, dy: &Delta) {
@@ -72,14 +90,11 @@ impl Main {
         if self.state.borrow().file.is_none() {
             return;
         }
-        log::info!("Moving cursor Y by {dy:?}");
-        log::info!(
-            "From pos {}, cursor_visible {}, cursor_line {}",
-            self.cursor_pos,
-            self.cursor_visible(),
-            self.cursor_line,
-        );
-        let cursor = if self.cursor_visible() {
+
+        // Get the new cursor position
+        // If the cursor is visible, then use the file navigation
+        // If not, choose a line based on the scroll direction, and find the first token
+        self.set_cursor(if self.cursor_visible() {
             let dir = match dy {
                 Delta::Inc(n) => Direction::Down(*n),
                 Delta::Dec(n) => Direction::Up(*n),
@@ -90,57 +105,46 @@ impl Main {
                 .file
                 .as_ref()
                 .expect("File is loaded")
-                .navigate_dir(self.cursor_pos, &dir)
+                .navigate_dir(self.cursor.byte_offset, &dir)
         } else {
-            log::info!("Cursor not visible, moving to line");
+            log::debug!("Cursor not visible, moving to line");
             let line = match dy {
                 Delta::Inc(_) => self.vertical_scroll,
                 Delta::Dec(_) => self
                     .vertical_scroll
                     .saturating_add(self.viewport.0 as usize)
                     .saturating_sub(1),
-                Delta::Zero => self.cursor_line,
+                Delta::Zero => self.cursor.line,
             };
-            log::info!("Current line after move: {line}");
             self.state
                 .borrow()
                 .file
                 .as_ref()
                 .expect("File is loaded")
                 .first_selectable_at_line(line)
-        };
-
-        self.cursor_line = self.line_at(Some(cursor));
+        });
 
         // Scroll the view if the cursor left the viewport
-        log::info!(
-            "To pos {cursor}, cursor_visible: {}, cursor_line: {}",
-            self.cursor_visible(),
-            self.cursor_line
-        );
-        if self.cursor_line < self.vertical_scroll {
-            self.scroll_to(Some(self.cursor_line), None);
-        } else if self.cursor_line
+        if self.cursor.line < self.vertical_scroll {
+            self.scroll_to(Some(self.cursor.line), None);
+        } else if self.cursor.line
             >= self
                 .vertical_scroll
                 .saturating_add(self.viewport.0 as usize)
         {
             self.scroll_to(
                 Some(
-                    self.cursor_line
+                    self.cursor
+                        .line
                         .saturating_sub(self.viewport.0 as usize)
                         .saturating_add(1),
                 ),
                 None,
             );
         }
-
-        // Set the value
-        self.cursor_pos = cursor;
     }
 
     fn scroll_to(&mut self, y: Option<usize>, x: Option<usize>) {
-        log::info!("Scrolling to y: {y:?}, x: {x:?}");
         match (y, x) {
             (Some(y), Some(x)) => {
                 self.vertical_scroll = y;
@@ -182,21 +186,13 @@ impl Main {
 
         self.scroll_to(Some(vertical_scroll), Some(horizontal_scroll));
     }
-
-    fn cursor_visible(&self) -> bool {
-        self.cursor_line >= self.vertical_scroll
-            && self.cursor_line
-                < self
-                    .vertical_scroll
-                    .saturating_add(self.viewport.0 as usize)
-    }
 }
 
 impl Main {
     #[allow(clippy::cast_possible_truncation)]
     fn draw_content(&mut self, _mode: &AppMode, frame: &mut Frame, area: Rect) {
         if let Some(file) = &self.state.borrow().file {
-            let (content, max_line) = file.render(self.cursor_pos.try_into().unwrap());
+            let (content, max_line) = file.render(self.cursor.byte_offset.try_into().unwrap());
 
             self.vertical_scroll_state = self.vertical_scroll_state.content_length(content.len());
             self.horizontal_scroll_state = self.horizontal_scroll_state.content_length(max_line);
@@ -235,7 +231,7 @@ impl Main {
             .map(|i| {
                 let line_no = i.saturating_add(1);
                 let mut line = Line::from(format!("{line_no}").to_string());
-                if i == self.cursor_line {
+                if i == self.cursor.line {
                     line = line.bg(Color::Indexed(236));
                 }
                 line
@@ -286,7 +282,7 @@ impl AppComponent for Main {
         self.draw_line_numbers(mode, frame, line_numbers, line_count);
     }
 
-    fn handle_event(&mut self, _mode: &AppMode, event: &AppEvent) -> bool {
+    fn handle_event(&mut self, mode: &AppMode, event: &AppEvent) -> bool {
         match event {
             AppEvent::CursorY(d) => self.move_cursor_y(d),
             AppEvent::ScrollX(d) => {
@@ -304,7 +300,7 @@ impl AppComponent for Main {
                 .file
                 .as_ref()
                 .expect("")
-                .info(self.cursor_pos),
+                .info(self.cursor.byte_offset),
             _ => return false,
         }
         true
