@@ -7,6 +7,7 @@ use ratatui::{
     },
     Frame,
 };
+use tui_textarea::TextArea;
 
 use crate::app::file::Direction;
 use crate::app::{AppComponent, AppEvent, AppMode, AppState, Delta};
@@ -18,8 +19,7 @@ struct CursorState {
 }
 
 #[derive(Default)]
-
-pub struct Main {
+pub struct Main<'a> {
     state: AppState,
     cursor: CursorState,
     vertical_scroll_state: ScrollbarState,
@@ -27,9 +27,10 @@ pub struct Main {
     vertical_scroll: usize,
     horizontal_scroll: usize,
     viewport: (u16, u16),
+    textarea: TextArea<'a>,
 }
 
-impl Main {
+impl Main<'_> {
     pub fn new(state: AppState) -> Self {
         Self {
             state,
@@ -39,6 +40,7 @@ impl Main {
             vertical_scroll: 0,
             horizontal_scroll: 0,
             viewport: (0, 0),
+            textarea: TextArea::default(),
         }
     }
 
@@ -188,7 +190,8 @@ impl Main {
     }
 }
 
-impl Main {
+// Drawing helpers
+impl Main<'_> {
     #[allow(clippy::cast_possible_truncation)]
     fn draw_content(&mut self, _mode: &AppMode, frame: &mut Frame, area: Rect) {
         if let Some(file) = &self.state.borrow().file {
@@ -243,9 +246,22 @@ impl Main {
             .block(block);
         frame.render_widget(paragraph, area);
     }
+
+    fn draw_editor(&mut self, frame: &mut Frame, area: Rect) {
+        let block = Block::new().borders(Borders::ALL).title("Editor");
+
+        let editor_area = Rect {
+            x: area.x + area.width / 4,
+            y: area.y + area.height / 4,
+            width: area.width / 2,
+            height: area.height / 2,
+        };
+        self.textarea.set_block(block);
+        frame.render_widget(&self.textarea, editor_area);
+    }
 }
 
-impl AppComponent for Main {
+impl AppComponent for Main<'_> {
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_sign_loss)]
     fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {
@@ -280,6 +296,9 @@ impl AppComponent for Main {
         frame.render_widget(Block::new().bg(Color::Indexed(22)), line_numbers);
         self.draw_content(mode, frame, main_content);
         self.draw_line_numbers(mode, frame, line_numbers, line_count);
+        if mode == &AppMode::Input {
+            self.draw_editor(frame, area);
+        }
     }
 
     fn handle_event(&mut self, mode: &AppMode, event: &AppEvent) -> bool {
@@ -301,6 +320,9 @@ impl AppComponent for Main {
                 .as_ref()
                 .expect("")
                 .info(self.cursor.byte_offset),
+            AppEvent::Raw(e) if mode == &AppMode::Input => {
+                self.textarea.input(*e);
+            }
             _ => return false,
         }
         true
