@@ -107,8 +107,10 @@ impl App<'_> {
 
     async fn handle_event(&mut self) -> std::io::Result<()> {
         if let Some(event) = handle_event(&self.mode)? {
-            self.state.borrow_mut().dirty =
-                self.handle_app_events(&event).await || self.handle_component_events(&event);
+            // Each function requires a call since OR'ing together short circuits
+            let app_requires_rerender = self.handle_app_events(&event).await;
+            let component_requires_rerender = self.handle_component_events(&event);
+            self.state.borrow_mut().dirty = app_requires_rerender || component_requires_rerender;
         }
         Ok(())
     }
