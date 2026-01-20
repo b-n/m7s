@@ -19,7 +19,7 @@ use cursor::{line_at_cursor, token_at_cursor};
 use kube::KubeDetails;
 use nav::selectable_token_in_direction;
 pub use nav::Direction;
-use utils::{ancestor_not_kind, node_dimensions, selectable_kind};
+use utils::{ancestor_not_kind, node_dimensions, selectable_kind, token_position};
 
 pub(crate) type SyntaxNodePtr = RowanSyntaxNodePtr<YamlLanguage>;
 pub(crate) type TokenAtOffset = RowanTokenAtOffset<SyntaxToken>;
@@ -33,6 +33,17 @@ pub enum Error {
     IoError(#[from] std::io::Error),
     #[error("YAML parse error: {0}")]
     YamlParseError(#[from] yaml_parser::SyntaxError),
+}
+
+pub type Range = std::ops::Range<usize>;
+
+#[derive(Debug, Clone)]
+pub struct TokenInfo {
+    pub token: SyntaxToken,
+    pub kind: SyntaxKind,
+    pub line: Range,
+    pub column: Range,
+    pub indent: String,
 }
 
 // TODO: Save file
@@ -152,6 +163,21 @@ impl File {
         info!("Kubernetes Details: {kube_details:?}");
         info!("Cursor: {cursor:?}");
         info!("Token: {token:?}");
+    }
+
+    pub fn token_info_at_cursor(&self, cursor: u32) -> TokenInfo {
+        let token = token_at_cursor(&self.ast, cursor).expect("Should always have a token");
+        let kind = token.kind();
+
+        let (line_info, col_info, indent) = token_position(&self.ast, &token);
+
+        TokenInfo {
+            token,
+            kind,
+            line: line_info,
+            column: col_info,
+            indent,
+        }
     }
 
     /// Write the file to disk in the same location.

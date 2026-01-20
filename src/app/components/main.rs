@@ -320,6 +320,16 @@ impl AppComponent for Main<'_> {
                 .as_ref()
                 .expect("")
                 .info(self.cursor.byte_offset),
+            AppEvent::ChangeMode(_mode) => {
+                let tokeninfo = self
+                    .state
+                    .borrow()
+                    .file
+                    .as_ref()
+                    .expect("")
+                    .token_info_at_cursor(self.cursor.byte_offset);
+                log::info!("Token at cursor: {tokeninfo:?}");
+            }
             AppEvent::Raw(e) if mode == &AppMode::Input => {
                 self.textarea.input(*e);
             }
