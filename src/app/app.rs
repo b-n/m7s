@@ -19,21 +19,21 @@ pub struct State {
     pub file: Option<File>,
 }
 
-pub struct App {
+pub struct App<'a> {
     api_client: ApiClient,
     state: AppState,
-    components: components::Components,
+    components: components::Components<'a>,
     mode: AppMode,
 }
 
-impl App {
+impl App<'_> {
     pub fn new(api_client: ApiClient) -> Self {
         let state = Rc::new(RefCell::new(State {
             dirty: true,
             ..State::default()
         }));
 
-        let components = components::Components::new(state.clone());
+        let components = components::Components::new(&state);
 
         App {
             api_client,

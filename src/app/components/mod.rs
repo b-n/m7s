@@ -14,14 +14,14 @@ pub use main::Main;
 use super::{AppComponent, AppEvent, AppMode, AppState};
 
 #[derive(Default)]
-pub struct Components {
-    main: Main,
+pub struct Components<'a> {
+    main: Main<'a>,
     airline: Airline,
     info: Info,
 }
 
-impl Components {
-    pub fn new(state: AppState) -> Self {
+impl Components<'_> {
+    pub fn new(state: &AppState) -> Self {
         Self {
             main: Main::new(state.clone()),
             airline: Airline::new(state.clone()),
@@ -30,7 +30,7 @@ impl Components {
     }
 }
 
-impl AppComponent for Components {
+impl AppComponent for Components<'_> {
     fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {
         let layout = Layout::vertical([
             Constraint::Min(1),
