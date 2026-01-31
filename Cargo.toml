@@ -1,6 +1,6 @@
 [package]
 name = "m7s"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2024"
 license = "MIT"
 description = "m7s - m(anifest)s - a tool for helping with the generation of kubernetes manifests"
