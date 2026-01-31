@@ -63,7 +63,7 @@ impl Main {
 }
 
 // Movement/scroll helpers
-impl Main<'_> {
+impl Main {
     fn move_cursor_x(&mut self, dx: &Delta) {
         // Do nothing if the file is not loaded
         if self.state.borrow().file.is_none() {
