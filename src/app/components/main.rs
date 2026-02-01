@@ -7,10 +7,11 @@ use ratatui::{
     },
     Frame,
 };
+use std::sync::mpsc::Sender;
 use tui_textarea::TextArea;
 
-use crate::app::file::Direction;
-use crate::app::{AppComponent, AppEvent, AppMode, AppState, Delta};
+use crate::app::file::{Direction, File};
+use crate::app::{AppComponent, AppEvent, AppMode, Delta};
 
 #[derive(Default)]
 struct CursorState {
@@ -18,9 +19,9 @@ struct CursorState {
     line: usize,
 }
 
-#[derive(Default)]
 pub struct Main<'a> {
-    state: AppState,
+    sender: Sender<AppEvent>,
+    file: Option<File>,
     cursor: CursorState,
     vertical_scroll_state: ScrollbarState,
     horizontal_scroll_state: ScrollbarState,
@@ -31,9 +32,10 @@ pub struct Main<'a> {
 }
 
 impl Main<'_> {
-    pub fn new(state: AppState) -> Self {
+    pub fn new(sender: Sender<AppEvent>) -> Self {
         Self {
-            state,
+            sender,
+            file: None,
             cursor: CursorState::default(),
             vertical_scroll_state: ScrollbarState::default(),
             horizontal_scroll_state: ScrollbarState::default(),
@@ -47,8 +49,6 @@ impl Main<'_> {
     fn set_cursor(&mut self, byte_offset: u32) {
         self.cursor.byte_offset = byte_offset;
         self.cursor.line = self
-            .state
-            .borrow()
             .file
             .as_ref()
             .expect("File is loaded")
@@ -65,10 +65,10 @@ impl Main<'_> {
 }
 
 // Movement/scroll helpers
-impl Main {
+impl Main<'_> {
     fn move_cursor_x(&mut self, dx: &Delta) {
         // Do nothing if the file is not loaded
-        if self.state.borrow().file.is_none() {
+        if self.file.is_none() {
             return;
         }
 
@@ -79,8 +79,6 @@ impl Main {
         };
 
         self.cursor.byte_offset = self
-            .state
-            .borrow()
             .file
             .as_ref()
             .expect("File is loaded")
@@ -89,7 +87,7 @@ impl Main {
 
     fn move_cursor_y(&mut self, dy: &Delta) {
         // Do nothing if the file is not loaded
-        if self.state.borrow().file.is_none() {
+        if self.file.is_none() {
             return;
         }
 
@@ -102,9 +100,7 @@ impl Main {
                 Delta::Dec(n) => Direction::Up(*n),
                 Delta::Zero => Direction::Down(0),
             };
-            self.state
-                .borrow()
-                .file
+            self.file
                 .as_ref()
                 .expect("File is loaded")
                 .navigate_dir(self.cursor.byte_offset, &dir)
@@ -118,9 +114,7 @@ impl Main {
                     .saturating_sub(1),
                 Delta::Zero => self.cursor.line,
             };
-            self.state
-                .borrow()
-                .file
+            self.file
                 .as_ref()
                 .expect("File is loaded")
                 .first_selectable_at_line(line)
@@ -172,8 +166,6 @@ impl Main {
         let mut horizontal_scroll = self.horizontal_scroll.saturating_add_signed(dx);
 
         let (file_width, file_length) = self
-            .state
-            .borrow()
             .file
             .as_ref()
             .map_or((1, 1), |f| (f.max_width, f.line_count));
@@ -194,7 +186,7 @@ impl Main {
 impl Main<'_> {
     #[allow(clippy::cast_possible_truncation)]
     fn draw_content(&mut self, _mode: &AppMode, frame: &mut Frame, area: Rect) {
-        if let Some(file) = &self.state.borrow().file {
+        if let Some(file) = &self.file {
             let (content, max_line) = file.render(self.cursor.byte_offset.try_into().unwrap());
 
             self.vertical_scroll_state = self.vertical_scroll_state.content_length(content.len());
@@ -266,8 +258,6 @@ impl AppComponent for Main<'_> {
     #[allow(clippy::cast_sign_loss)]
     fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {
         let (line_count, max_width) = self
-            .state
-            .borrow()
             .file
             .as_ref()
             .map_or((1, 1), |f| (f.line_count, f.max_width));
@@ -313,17 +303,28 @@ impl AppComponent for Main<'_> {
             AppEvent::CursorX(d) => {
                 self.move_cursor_x(d);
             }
-            AppEvent::Info => self
-                .state
-                .borrow()
-                .file
-                .as_ref()
-                .expect("")
-                .info(self.cursor.byte_offset),
+            AppEvent::LoadPath(path) => {
+                let file = File::from_path(path.clone()).unwrap();
+                self.sender
+                    .send(AppEvent::LoadedFile(path.clone()))
+                    .unwrap();
+                self.file = Some(file);
+            }
+            AppEvent::Write => {
+                if let Some(file) = &mut self.file {
+                    file.write();
+                }
+            }
+            AppEvent::Info => {
+                let message = if let Some(file) = &self.file {
+                    file.info(self.cursor.byte_offset)
+                } else {
+                    "No file loaded".to_string()
+                };
+                self.sender.send(AppEvent::Debug(message)).unwrap();
+            }
             AppEvent::ChangeMode(_mode) => {
                 let tokeninfo = self
-                    .state
-                    .borrow()
                     .file
                     .as_ref()
                     .expect("")

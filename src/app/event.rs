@@ -1,6 +1,7 @@
 use log::debug;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::io;
+use std::path::PathBuf;
 use tokio::time::Duration;
 
 use super::AppMode;
@@ -24,6 +25,7 @@ impl From<&Delta> for isize {
 
 #[derive(Debug)]
 pub enum AppEvent {
+    // Input events
     ChangeMode(AppMode),
     Exit,
     Submit,
@@ -38,9 +40,13 @@ pub enum AppEvent {
     Write,
     DumpDebug,
     Raw(KeyEvent),
+    // App events
+    LoadPath(PathBuf),
+    LoadedFile(PathBuf),
+    Debug(String),
 }
 
-pub fn handle_event(mode: &AppMode) -> io::Result<Option<AppEvent>> {
+pub fn poll_input_for_event(mode: &AppMode) -> io::Result<Option<AppEvent>> {
     match event::poll(Duration::from_millis(10)) {
         Ok(true) => {
             let event = match event::read()? {

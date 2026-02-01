@@ -6,12 +6,11 @@ mod event;
 mod file;
 mod traits;
 
-pub use app::{App, AppState};
+pub use app::App;
 pub use error::AppError;
 pub use traits::AppComponent;
 
 use event::{AppEvent, Delta};
-use file::File;
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub enum AppMode {

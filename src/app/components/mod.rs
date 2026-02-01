@@ -2,6 +2,7 @@ use ratatui::{
     layout::{Constraint, Layout, Rect},
     Frame,
 };
+use std::sync::mpsc::Sender;
 
 mod airline;
 mod info;
@@ -11,9 +12,8 @@ pub use airline::Airline;
 pub use info::Info;
 pub use main::Main;
 
-use super::{AppComponent, AppEvent, AppMode, AppState};
+use super::{AppComponent, AppEvent, AppMode};
 
-#[derive(Default)]
 pub struct Components<'a> {
     main: Main<'a>,
     airline: Airline,
@@ -21,11 +21,11 @@ pub struct Components<'a> {
 }
 
 impl Components<'_> {
-    pub fn new(state: &AppState) -> Self {
+    pub fn new(sender: Sender<AppEvent>) -> Self {
         Self {
-            main: Main::new(state.clone()),
-            airline: Airline::new(state.clone()),
-            info: Info::new(state.clone()),
+            main: Main::new(sender.clone()),
+            airline: Airline::new(sender.clone()),
+            info: Info::new(sender.clone()),
         }
     }
 }

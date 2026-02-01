@@ -155,14 +155,12 @@ impl File {
             .into()
     }
 
-    pub fn info(&self, cursor: u32) {
+    pub fn info(&self, cursor: u32) -> String {
         let token = token_at_cursor(&self.ast, cursor).expect("Should always have a token");
 
         let kube_details: KubeDetails = (&token).try_into().unwrap();
 
-        info!("Kubernetes Details: {kube_details:?}");
-        info!("Cursor: {cursor:?}");
-        info!("Token: {token:?}");
+        format!("Kubernetes Details: {kube_details:?}\nCursor: {cursor:?}\nToken: {token:?}")
     }
 
     pub fn token_info_at_cursor(&self, cursor: u32) -> TokenInfo {

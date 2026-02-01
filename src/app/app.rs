@@ -1,83 +1,116 @@
 use log::{debug, info};
 use ratatui::{backend::Backend, DefaultTerminal, Frame, Terminal};
-use std::cell::RefCell;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::{
+    mpsc::{channel, Receiver, Sender},
+    Arc, RwLock,
+};
 use tokio::time::{sleep, Duration};
 
 use crate::api_client::ApiClient;
 
-use super::{components, event::handle_event, AppComponent, AppError, AppEvent, AppMode, File};
+use super::{components, event::poll_input_for_event, AppComponent, AppError, AppEvent, AppMode};
 
-pub type AppState = Rc<RefCell<State>>;
-
-#[derive(Default, Debug)]
-pub struct State {
-    initialized: bool,
-    dirty: bool,
-    quitting: bool,
-    pub file: Option<File>,
+#[derive(Default, PartialEq, Clone)]
+enum AppState {
+    #[default]
+    Uninitialized,
+    Initialized,
+    Running,
+    Quitting,
 }
 
 pub struct App<'a> {
+    sender: Sender<AppEvent>,
+    receiver: Receiver<AppEvent>,
     api_client: ApiClient,
-    state: AppState,
     components: components::Components<'a>,
     mode: AppMode,
+    state: Arc<RwLock<AppState>>,
+    dirty: bool,
 }
 
 impl App<'_> {
     pub fn new(api_client: ApiClient) -> Self {
-        let state = Rc::new(RefCell::new(State {
-            dirty: true,
-            ..State::default()
-        }));
+        let (sender, receiver) = channel();
 
-        let components = components::Components::new(&state);
+        let components = components::Components::new(sender.clone());
 
         App {
+            sender: sender.clone(),
+            receiver,
             api_client,
-            state,
-            mode: AppMode::Normal,
             components,
+            mode: AppMode::Normal,
+            state: Arc::new(RwLock::new(AppState::default())),
+            dirty: true,
         }
     }
 
-    pub fn startup(&mut self, file: Option<PathBuf>) -> Result<DefaultTerminal, AppError> {
-        let mut state = self.state.borrow_mut();
-        if state.initialized {
+    fn state(&self) -> AppState {
+        self.state.read().unwrap().clone()
+    }
+
+    fn set_state(&mut self, new_state: AppState) {
+        let mut state = self.state.write().unwrap();
+        *state = new_state;
+    }
+
+    pub fn startup(&mut self) -> Result<DefaultTerminal, AppError> {
+        if self.state() != AppState::Uninitialized {
             return Err(AppError::AlreadyInitialized);
         }
 
-        if let Some(path) = file {
-            state.file = Some(File::from_path(path)?);
-        }
-
         let terminal = ratatui::init();
-        state.initialized = true;
+        self.set_state(AppState::Initialized);
         Ok(terminal)
     }
 
+    fn poll_input(&self) {
+        let sender = self.sender.clone();
+
+        let state = self.state.clone();
+
+        tokio::spawn(async move {
+            loop {
+                if *state.read().unwrap() == AppState::Quitting {
+                    break;
+                }
+                match poll_input_for_event(&AppMode::Normal) {
+                    Ok(Some(event)) => {
+                        sender.send(event).unwrap();
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        log::error!("Error polling input: {e}");
+                    }
+                }
+            }
+        });
+    }
+
     pub async fn run<T: Backend>(&mut self, mut terminal: Terminal<T>) -> Result<(), AppError> {
-        if !self.state.borrow().initialized {
+        if self.state() != AppState::Initialized {
             return Err(AppError::NotInitialized);
         }
 
+        self.set_state(AppState::Running);
+
+        // Setup input polling for generating input AppEvent's
+        self.poll_input();
+
         loop {
-            self.handle_event().await?;
+            // Handle any incoming events
+            if let Ok(event) = self.receiver.recv_timeout(Duration::from_millis(10)) {
+                self.handle_event(&event).await;
+            }
 
-            // Needed to borrow state inside
-            let (quitting, dirty) = {
-                let state = self.state.borrow();
-                (state.quitting, state.dirty)
-            };
-
-            if quitting {
-                info! {"Quitting application..."}
+            if self.state() == AppState::Quitting {
+                info!("Quitting application...");
                 break;
             }
 
-            if dirty {
+            if self.dirty {
                 terminal.draw(|frame| self.draw(frame))?;
             }
 
@@ -87,56 +120,28 @@ impl App<'_> {
         Ok(())
     }
 
-    pub fn shutdown(&mut self) {
-        self.state.borrow_mut().initialized = false;
+    pub fn shutdown(self) {
+        if self.state() != AppState::Quitting {
+            log::warn!("Shutting down app that is not in quitting state");
+        }
         ratatui::restore();
     }
 
-    fn load_file(&mut self) -> Result<(), AppError> {
-        let path = PathBuf::from("./examples/long.yaml");
-        self.state.borrow_mut().file = Some(File::from_path(path)?);
-        Ok(())
+    // Helper function when loading the application to immediately load a file
+    pub fn load_file(&mut self, path: PathBuf) -> Result<(), AppError> {
+        Ok(self.sender.send(AppEvent::LoadPath(path))?)
     }
 
-    fn write_file(&self) {
-        let mut state = self.state.borrow_mut();
-        if let Some(file) = &mut state.file {
-            file.write();
-        }
-    }
-
-    async fn handle_event(&mut self) -> std::io::Result<()> {
-        if let Some(event) = handle_event(&self.mode)? {
-            // Each function requires a call since OR'ing together short circuits
-            let app_requires_rerender = self.handle_app_events(&event).await;
-            let component_requires_rerender = self.handle_component_events(&event);
-            self.state.borrow_mut().dirty = app_requires_rerender || component_requires_rerender;
-        }
-        Ok(())
+    async fn handle_event(&mut self, event: &AppEvent) {
+        let app_requires_rerender = self.handle_app_events(event).await;
+        let component_requires_rerender = self.handle_component_events(event);
+        self.dirty = app_requires_rerender || component_requires_rerender;
     }
 
     async fn handle_app_events(&mut self, event: &AppEvent) -> bool {
         match event {
             AppEvent::ChangeMode(m) => {
                 self.mode = m.clone();
-                true
-            }
-            AppEvent::Load => {
-                // TODO: This should load a modal, not the file
-                match self.load_file() {
-                    Ok(()) => {}
-                    Err(_e) => {
-                        todo!()
-                    }
-                }
-                true
-            }
-            AppEvent::Write => {
-                self.write_file();
-                true
-            }
-            AppEvent::DumpDebug => {
-                info!("App State: {:#?}", self.state.borrow());
                 true
             }
             AppEvent::TerminalResize => true,
@@ -161,7 +166,7 @@ impl App<'_> {
                 true
             }
             AppEvent::Exit => {
-                self.state.borrow_mut().quitting = true;
+                self.set_state(AppState::Quitting);
                 true
             }
             _ => false,
@@ -175,6 +180,6 @@ impl App<'_> {
 
     fn draw(&mut self, frame: &mut Frame) {
         self.components.draw(&self.mode, frame, frame.area());
-        self.state.borrow_mut().dirty = false;
+        self.dirty = false;
     }
 }

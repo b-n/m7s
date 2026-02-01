@@ -29,7 +29,11 @@ async fn run() -> Result<(), Error> {
     let client = api_client::from_config(&config).await?;
 
     let mut app = app::App::new(client);
-    let terminal = app.startup(config.file)?;
+    let terminal = app.startup()?;
+    if let Some(path) = config.file {
+        app.load_file(path)?;
+    }
+
     let result = app.run(terminal).await;
     app.shutdown();
 
