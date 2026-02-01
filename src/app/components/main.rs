@@ -11,7 +11,7 @@ use std::sync::mpsc::Sender;
 use tui_textarea::TextArea;
 
 use crate::app::file::{Direction, File};
-use crate::app::{AppComponent, AppEvent, AppMode, Delta};
+use crate::app::{AppComponent, AppError, AppEvent, AppMode, Delta};
 
 #[derive(Default)]
 struct CursorState {
@@ -291,7 +291,7 @@ impl AppComponent for Main<'_> {
         }
     }
 
-    fn handle_event(&mut self, mode: &AppMode, event: &AppEvent) -> bool {
+    fn handle_event(&mut self, mode: &AppMode, event: &AppEvent) -> Result<bool, AppError> {
         match event {
             AppEvent::CursorY(d) => self.move_cursor_y(d),
             AppEvent::ScrollX(d) => {
@@ -324,18 +324,19 @@ impl AppComponent for Main<'_> {
                 self.sender.send(AppEvent::Debug(message)).unwrap();
             }
             AppEvent::ChangeMode(_mode) => {
-                let tokeninfo = self
-                    .file
-                    .as_ref()
-                    .expect("")
-                    .token_info_at_cursor(self.cursor.byte_offset);
-                log::info!("Token at cursor: {tokeninfo:?}");
+                if mode == &AppMode::Input
+                    && let Some(file) = &mut self.file
+                {
+                    let tokeninfo = file.token_info_at_cursor(self.cursor.byte_offset);
+                    self.sender
+                        .send(AppEvent::Debug(format!("Tokeninfo: {tokeninfo:?}")))?;
+                }
             }
             AppEvent::Raw(e) if mode == &AppMode::Input => {
                 self.textarea.input(*e);
             }
-            _ => return false,
+            _ => return Ok(false),
         }
-        true
+        Ok(true)
     }
 }

@@ -12,7 +12,7 @@ pub use airline::Airline;
 pub use info::Info;
 pub use main::Main;
 
-use super::{AppComponent, AppEvent, AppMode};
+use super::{AppComponent, AppError, AppEvent, AppMode};
 
 pub struct Components<'a> {
     main: Main<'a>,
@@ -45,9 +45,9 @@ impl AppComponent for Components<'_> {
         self.info.draw(mode, frame, info_area);
     }
 
-    fn handle_event(&mut self, mode: &AppMode, event: &AppEvent) -> bool {
-        self.main.handle_event(mode, event)
-            || self.airline.handle_event(mode, event)
-            || self.info.handle_event(mode, event)
+    fn handle_event(&mut self, mode: &AppMode, event: &AppEvent) -> Result<bool, AppError> {
+        Ok(self.main.handle_event(mode, event)?
+            || self.airline.handle_event(mode, event)?
+            || self.info.handle_event(mode, event)?)
     }
 }

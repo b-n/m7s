@@ -7,7 +7,7 @@ use ratatui::{
 use std::path::PathBuf;
 use std::sync::mpsc::Sender;
 
-use crate::app::{AppComponent, AppEvent, AppMode};
+use crate::app::{AppComponent, AppError, AppEvent, AppMode};
 
 #[derive(Default)]
 pub struct Airline {
@@ -35,13 +35,13 @@ impl AppComponent for Airline {
         frame.render_widget(Line::from(airline_message).bg(Color::Indexed(54)), area);
     }
 
-    fn handle_event(&mut self, _mode: &AppMode, event: &AppEvent) -> bool {
+    fn handle_event(&mut self, _mode: &AppMode, event: &AppEvent) -> Result<bool, AppError> {
         match event {
             AppEvent::LoadedFile(path) => {
                 self.loaded_path = Some(path.clone());
             }
-            _ => return false,
+            _ => return Ok(false),
         }
-        true
+        Ok(true)
     }
 }

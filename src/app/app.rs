@@ -102,7 +102,7 @@ impl App<'_> {
         loop {
             // Handle any incoming events
             if let Ok(event) = self.receiver.recv_timeout(Duration::from_millis(10)) {
-                self.handle_event(&event).await;
+                self.handle_event(&event).await?;
             }
 
             if self.state() == AppState::Quitting {
@@ -132,10 +132,11 @@ impl App<'_> {
         Ok(self.sender.send(AppEvent::LoadPath(path))?)
     }
 
-    async fn handle_event(&mut self, event: &AppEvent) {
+    async fn handle_event(&mut self, event: &AppEvent) -> Result<(), AppError> {
         let app_requires_rerender = self.handle_app_events(event).await;
-        let component_requires_rerender = self.handle_component_events(event);
+        let component_requires_rerender = self.handle_component_events(event)?;
         self.dirty = app_requires_rerender || component_requires_rerender;
+        Ok(())
     }
 
     async fn handle_app_events(&mut self, event: &AppEvent) -> bool {
@@ -173,7 +174,7 @@ impl App<'_> {
         }
     }
 
-    fn handle_component_events(&mut self, event: &AppEvent) -> bool {
+    fn handle_component_events(&mut self, event: &AppEvent) -> Result<bool, AppError> {
         // TODO: Allow components to push events too
         self.components.handle_event(&self.mode, event)
     }

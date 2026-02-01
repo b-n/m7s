@@ -1,4 +1,4 @@
-use log::{debug, info};
+use log::debug;
 use ratatui::{
     style::{Style, Stylize},
     text::{Line, Span},

@@ -8,7 +8,7 @@ use ratatui::{
 use std::string::ToString;
 use std::sync::mpsc::Sender;
 
-use crate::app::{AppComponent, AppEvent, AppMode};
+use crate::app::{AppComponent, AppError, AppEvent, AppMode};
 
 #[derive(Default)]
 pub struct Info {
@@ -45,13 +45,13 @@ impl AppComponent for Info {
         frame.render_widget(p, area);
     }
 
-    fn handle_event(&mut self, _mode: &AppMode, event: &AppEvent) -> bool {
+    fn handle_event(&mut self, _mode: &AppMode, event: &AppEvent) -> Result<bool, AppError> {
         match event {
             AppEvent::Debug(msg) => {
                 self.log = msg.split('\n').map(ToString::to_string).collect();
             }
-            _ => return false,
+            _ => return Ok(false),
         }
-        true
+        Ok(true)
     }
 }
