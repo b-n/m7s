@@ -1,0 +1,18 @@
+alpha: beta # commenta
+
+# commentb
+
+charlie:
+  delta: echo # commentc
+  # commentd
+  # commente
+  foxtrot: |
+    golf
+  "hotel": india
+  'juliet': 'kilo'
+  lima:
+  - mike
+  november:
+    - oscar
+    - |
+      papa
