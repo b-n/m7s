@@ -25,7 +25,7 @@ pub struct App<'a> {
     receiver: Receiver<AppEvent>,
     api_client: ApiClient,
     components: components::Components<'a>,
-    mode: AppMode,
+    mode: Arc<RwLock<AppMode>>,
     state: Arc<RwLock<AppState>>,
     dirty: bool,
 }
@@ -41,7 +41,7 @@ impl App<'_> {
             receiver,
             api_client,
             components,
-            mode: AppMode::Normal,
+            mode: Arc::new(RwLock::new(AppMode::Normal)),
             state: Arc::new(RwLock::new(AppState::default())),
             dirty: true,
         }
@@ -56,6 +56,15 @@ impl App<'_> {
         *state = new_state;
     }
 
+    fn mode(&self) -> AppMode {
+        self.mode.read().unwrap().clone()
+    }
+
+    fn set_mode(&mut self, new_mode: AppMode) {
+        let mut mode = self.mode.write().unwrap();
+        *mode = new_mode;
+    }
+
     pub fn startup(&mut self) -> Result<DefaultTerminal, AppError> {
         if self.state() != AppState::Uninitialized {
             return Err(AppError::AlreadyInitialized);
@@ -68,15 +77,16 @@ impl App<'_> {
 
     fn poll_input(&self) {
         let sender = self.sender.clone();
-
         let state = self.state.clone();
+        let mode = self.mode.clone();
 
         tokio::spawn(async move {
             loop {
+                let mode = mode.read().unwrap().clone();
                 if *state.read().unwrap() == AppState::Quitting {
                     break;
                 }
-                match poll_input_for_event(&AppMode::Normal) {
+                match poll_input_for_event(&mode) {
                     Ok(Some(event)) => {
                         sender.send(event).unwrap();
                     }
@@ -142,7 +152,7 @@ impl App<'_> {
     async fn handle_app_events(&mut self, event: &AppEvent) -> bool {
         match event {
             AppEvent::ChangeMode(m) => {
-                self.mode = m.clone();
+                self.set_mode(m.clone());
                 true
             }
             AppEvent::TerminalResize => true,
@@ -176,11 +186,11 @@ impl App<'_> {
 
     fn handle_component_events(&mut self, event: &AppEvent) -> Result<bool, AppError> {
         // TODO: Allow components to push events too
-        self.components.handle_event(&self.mode, event)
+        self.components.handle_event(&self.mode(), event)
     }
 
     fn draw(&mut self, frame: &mut Frame) {
-        self.components.draw(&self.mode, frame, frame.area());
+        self.components.draw(&self.mode(), frame, frame.area());
         self.dirty = false;
     }
 }
