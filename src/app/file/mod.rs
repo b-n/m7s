@@ -39,6 +39,7 @@ pub type Range = std::ops::Range<usize>;
 
 #[derive(Debug, Clone)]
 pub struct TokenInfo {
+    pub parent: Option<SyntaxNode>,
     pub token: SyntaxToken,
     pub kind: SyntaxKind,
     pub line: Range,
@@ -170,6 +171,7 @@ impl File {
         let (line_info, col_info, indent) = token_position(&self.ast, &token);
 
         TokenInfo {
+            parent: token.parent(),
             token,
             kind,
             line: line_info,

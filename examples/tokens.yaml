@@ -16,3 +16,6 @@ charlie:
     - oscar
     - |
       papa
+      "quebec"|romeo
+    - >
+      sierra
