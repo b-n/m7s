@@ -1,7 +1,8 @@
 use super::{SyntaxKind, SyntaxToken};
 use crate::api_client::ApiGroup;
+use rowan::ast::AstNode;
 use std::collections::HashMap;
-use yaml_parser::ast::{AstNode, BlockMapValue, Document};
+use yaml_parser::ast::{BlockMapValue, Document};
 
 use super::utils::parent_node_until;
 

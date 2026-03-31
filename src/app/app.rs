@@ -1,5 +1,5 @@
 use log::{debug, info};
-use ratatui::{DefaultTerminal, Frame, Terminal, backend::Backend};
+use ratatui::{DefaultTerminal, Frame};
 use std::path::PathBuf;
 use std::sync::{
     Arc, RwLock,
@@ -99,7 +99,7 @@ impl App<'_> {
         });
     }
 
-    pub async fn run<T: Backend>(&mut self, mut terminal: Terminal<T>) -> Result<(), AppError> {
+    pub async fn run(&mut self, mut terminal: DefaultTerminal) -> Result<(), AppError> {
         if self.state() != AppState::Initialized {
             return Err(AppError::NotInitialized);
         }

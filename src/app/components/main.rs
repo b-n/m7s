@@ -7,8 +7,8 @@ use ratatui::{
         Block, Borders, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
     },
 };
+use ratatui_textarea::TextArea;
 use std::sync::mpsc::Sender;
-use tui_textarea::TextArea;
 
 use crate::app::file::{Direction, File};
 use crate::app::{AppComponent, AppError, AppEvent, AppMode, Delta};
