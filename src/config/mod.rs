@@ -82,7 +82,7 @@ pub fn parse() -> Result<Config, ConfigError> {
                 .ok_or(ConfigError::InvalidContext(
                     "Could not read current_context".to_string(),
                 ))?
-                .to_string()
+                .clone()
         };
 
     Ok(Config {

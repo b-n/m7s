@@ -6,7 +6,7 @@ use tokio::time::Duration;
 
 use super::AppMode;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Delta {
     Inc(usize),
     Dec(usize),

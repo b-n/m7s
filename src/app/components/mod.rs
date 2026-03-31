@@ -21,7 +21,7 @@ pub struct Components<'a> {
 }
 
 impl Components<'_> {
-    pub fn new(sender: Sender<AppEvent>) -> Self {
+    pub fn new(sender: &Sender<AppEvent>) -> Self {
         Self {
             main: Main::new(sender.clone()),
             airline: Airline::new(sender.clone()),
@@ -31,7 +31,7 @@ impl Components<'_> {
 }
 
 impl AppComponent for Components<'_> {
-    fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {
+    fn draw(&mut self, mode: &AppMode, frame: &mut Frame<'_>, area: Rect) {
         let layout = Layout::vertical([
             Constraint::Min(1),
             Constraint::Length(1),

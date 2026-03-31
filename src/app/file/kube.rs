@@ -19,6 +19,8 @@ pub enum KubeDetailsError {
     DocumentMissingKindOrApiVersion,
 }
 
+// TODO: Use a command  mode...
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct KubeDetails {
     kind: String,

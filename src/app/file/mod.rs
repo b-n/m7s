@@ -37,8 +37,11 @@ pub enum Error {
 
 pub type Range = std::ops::Range<usize>;
 
+// TODO: Use a command  mode...
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct TokenInfo {
+    pub grandparent: Option<SyntaxNode>,
     pub parent: Option<SyntaxNode>,
     pub token: SyntaxToken,
     pub kind: SyntaxKind,
@@ -171,6 +174,7 @@ impl File {
         let (line_info, col_info, indent) = token_position(&self.ast, &token);
 
         TokenInfo {
+            grandparent: token.parent().and_then(|parent| parent.parent()),
             parent: token.parent(),
             token,
             kind,

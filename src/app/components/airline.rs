@@ -21,7 +21,7 @@ impl Airline {
 }
 
 impl AppComponent for Airline {
-    fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {
+    fn draw(&mut self, mode: &AppMode, frame: &mut Frame<'_>, area: Rect) {
         let path = self
             .loaded_path
             .clone()

@@ -17,6 +17,8 @@ pub enum AppMode {
     #[default]
     Normal,
     Input,
+    // TODO: Use a command  mode...
+    #[allow(dead_code)]
     Command,
 }
 

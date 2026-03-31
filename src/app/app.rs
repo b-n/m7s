@@ -1,15 +1,15 @@
 use log::{debug, info};
-use ratatui::{backend::Backend, DefaultTerminal, Frame, Terminal};
+use ratatui::{DefaultTerminal, Frame, Terminal, backend::Backend};
 use std::path::PathBuf;
 use std::sync::{
-    mpsc::{channel, Receiver, Sender},
     Arc, RwLock,
+    mpsc::{Receiver, Sender, channel},
 };
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 use crate::api_client::ApiClient;
 
-use super::{components, event::poll_input_for_event, AppComponent, AppError, AppEvent, AppMode};
+use super::{AppComponent, AppError, AppEvent, AppMode, components, event::poll_input_for_event};
 
 #[derive(Default, PartialEq, Clone)]
 enum AppState {
@@ -34,10 +34,10 @@ impl App<'_> {
     pub fn new(api_client: ApiClient) -> Self {
         let (sender, receiver) = channel();
 
-        let components = components::Components::new(sender.clone());
+        let components = components::Components::new(&sender);
 
         App {
-            sender: sender.clone(),
+            sender,
             receiver,
             api_client,
             components,
@@ -124,7 +124,7 @@ impl App<'_> {
                 terminal.draw(|frame| self.draw(frame))?;
             }
 
-            self::sleep(Duration::from_millis(16)).await;
+            sleep(Duration::from_millis(16)).await;
         }
 
         Ok(())
@@ -189,7 +189,7 @@ impl App<'_> {
         self.components.handle_event(&self.mode(), event)
     }
 
-    fn draw(&mut self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &mut Frame<'_>) {
         self.components.draw(&self.mode(), frame, frame.area());
         self.dirty = false;
     }

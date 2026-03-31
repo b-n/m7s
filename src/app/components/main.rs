@@ -1,11 +1,11 @@
 use ratatui::{
+    Frame,
     layout::{Constraint, Layout, Rect},
     style::{Color, Stylize},
     text::{Line, Text},
     widgets::{
         Block, Borders, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
     },
-    Frame,
 };
 use std::sync::mpsc::Sender;
 use tui_textarea::TextArea;
@@ -185,7 +185,7 @@ impl Main<'_> {
 // Drawing helpers
 impl Main<'_> {
     #[allow(clippy::cast_possible_truncation)]
-    fn draw_content(&mut self, _mode: &AppMode, frame: &mut Frame, area: Rect) {
+    fn draw_content(&mut self, _mode: &AppMode, frame: &mut Frame<'_>, area: Rect) {
         if let Some(file) = &self.file {
             let (content, max_line) = file.render(self.cursor.byte_offset.try_into().unwrap());
 
@@ -216,7 +216,13 @@ impl Main<'_> {
     }
 
     #[allow(clippy::cast_possible_truncation)]
-    fn draw_line_numbers(&self, _mode: &AppMode, frame: &mut Frame, area: Rect, line_count: usize) {
+    fn draw_line_numbers(
+        &self,
+        _mode: &AppMode,
+        frame: &mut Frame<'_>,
+        area: Rect,
+        line_count: usize,
+    ) {
         let block = Block::new()
             .bg(Color::Indexed(22))
             .padding(Padding::right(1));
@@ -239,7 +245,7 @@ impl Main<'_> {
         frame.render_widget(paragraph, area);
     }
 
-    fn draw_editor(&mut self, frame: &mut Frame, area: Rect) {
+    fn draw_editor(&mut self, frame: &mut Frame<'_>, area: Rect) {
         let block = Block::new().borders(Borders::ALL).title("Editor");
 
         let editor_area = Rect {
@@ -256,7 +262,7 @@ impl Main<'_> {
 impl AppComponent for Main<'_> {
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_sign_loss)]
-    fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {
+    fn draw(&mut self, mode: &AppMode, frame: &mut Frame<'_>, area: Rect) {
         let (line_count, max_width) = self
             .file
             .as_ref()

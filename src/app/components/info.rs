@@ -22,7 +22,7 @@ impl Info {
 }
 
 impl AppComponent for Info {
-    fn draw(&mut self, mode: &AppMode, frame: &mut Frame, area: Rect) {
+    fn draw(&mut self, mode: &AppMode, frame: &mut Frame<'_>, area: Rect) {
         let mut lines = vec![Line::from(match mode {
             AppMode::Normal => vec![
                 "(enter)".bold().cyan(),
