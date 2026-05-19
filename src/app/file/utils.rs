@@ -25,6 +25,32 @@ pub(crate) fn selectable_kind(kind: SyntaxKind) -> bool {
     )
 }
 
+pub(crate) fn is_selectable_node(node: &SyntaxNode) -> bool {
+    // Map keys are always selectable
+    // Map values, or sequence entries are selectable, on if their child node is a flow
+    // everything else is not selectable
+    match node.kind() {
+        SyntaxKind::BLOCK_MAP_KEY | SyntaxKind::BLOCK_SCALAR => true,
+        SyntaxKind::BLOCK_MAP_VALUE | SyntaxKind::BLOCK_SEQ_ENTRY => {
+            // All nodes should have one child node only
+            let mut children = node.children().peekable();
+            let child = children
+                .next()
+                .expect("All SyntaxNode's should have a child");
+
+            // Check if there are more children. IF they are, it's likely an error, so not
+            // selectable
+            if children.peek().is_some() {
+                return false;
+            }
+
+            // Only able to select these nodes if it's a flow
+            child.kind() == SyntaxKind::FLOW
+        }
+        _ => false,
+    }
+}
+
 pub(crate) fn node_dimensions(tree: &SyntaxNode) -> (usize, usize) {
     let mut max_width = 0;
     let mut line_count = 0;
@@ -59,7 +85,7 @@ pub(crate) fn node_dimensions(tree: &SyntaxNode) -> (usize, usize) {
     (line_count, max_width)
 }
 
-fn count_whitespace_newlines(text: &str) -> usize {
+pub fn count_newlines(text: &str) -> usize {
     text.chars().filter(|&c| c == '\n').count()
 }
 
@@ -67,7 +93,7 @@ pub(crate) fn whitespace_newlines(token: &SyntaxToken) -> Option<usize> {
     if token.kind() != SyntaxKind::WHITESPACE {
         return None;
     }
-    Some(count_whitespace_newlines(token.text()))
+    Some(count_newlines(token.text()))
     //let text = token.text();
     //let without_newlines = text.replace('\n', "");
     //Some(text.len() - without_newlines.len())
@@ -128,7 +154,7 @@ pub(crate) fn token_position(
             }
 
             let text = token.text();
-            let newlines = count_whitespace_newlines(text);
+            let newlines = count_newlines(text);
 
             // We only want whitespace tokens containing newlines
             if token.kind() == SyntaxKind::WHITESPACE && newlines > 0 {
@@ -151,7 +177,7 @@ pub(crate) fn token_position(
 
     let line_range = Range {
         start: line,
-        end: line + count_whitespace_newlines(search_token_text),
+        end: line + count_newlines(search_token_text),
     };
 
     let indent = last_whitespace.map_or(String::new(), |ws| {

@@ -1,28 +1,22 @@
 use ratatui::{
-    Frame,
     layout::{Constraint, Layout, Rect},
     style::{Color, Stylize},
     text::{Line, Text},
     widgets::{
         Block, Borders, Padding, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
     },
+    Frame,
 };
 use ratatui_textarea::TextArea;
 use std::sync::mpsc::Sender;
 
-use crate::app::file::{Direction, File};
+use crate::app::file::{Cursor, Direction, File};
 use crate::app::{AppComponent, AppError, AppEvent, AppMode, Delta};
-
-#[derive(Default)]
-struct CursorState {
-    byte_offset: u32,
-    line: usize,
-}
 
 pub struct Main<'a> {
     sender: Sender<AppEvent>,
     file: Option<File>,
-    cursor: CursorState,
+    cursor: Cursor,
     vertical_scroll_state: ScrollbarState,
     horizontal_scroll_state: ScrollbarState,
     vertical_scroll: usize,
@@ -36,7 +30,7 @@ impl Main<'_> {
         Self {
             sender,
             file: None,
-            cursor: CursorState::default(),
+            cursor: Cursor::default(),
             vertical_scroll_state: ScrollbarState::default(),
             horizontal_scroll_state: ScrollbarState::default(),
             vertical_scroll: 0,
@@ -46,18 +40,14 @@ impl Main<'_> {
         }
     }
 
-    fn set_cursor(&mut self, byte_offset: u32) {
-        self.cursor.byte_offset = byte_offset;
-        self.cursor.line = self
-            .file
-            .as_ref()
-            .expect("File is loaded")
-            .line_at_cursor(self.cursor.byte_offset);
+    fn set_cursor(&mut self, cursor: Cursor) {
+        self.cursor = cursor;
     }
 
     fn cursor_visible(&self) -> bool {
-        self.cursor.line >= self.vertical_scroll
-            && self.cursor.line
+        let cursor_line = self.cursor.line();
+        cursor_line >= self.vertical_scroll
+            && cursor_line
                 < self
                     .vertical_scroll
                     .saturating_add(self.viewport.0 as usize)
@@ -78,11 +68,12 @@ impl Main<'_> {
             Delta::Zero => Direction::Right(0),
         };
 
-        self.cursor.byte_offset = self
-            .file
-            .as_ref()
-            .expect("File is loaded")
-            .navigate_dir(self.cursor.byte_offset, &dir);
+        self.set_cursor(
+            self.file
+                .as_ref()
+                .expect("File is loaded")
+                .navigate(&self.cursor, &dir),
+        );
     }
 
     fn move_cursor_y(&mut self, dy: &Delta) {
@@ -94,7 +85,9 @@ impl Main<'_> {
         // Get the new cursor position
         // If the cursor is visible, then use the file navigation
         // If not, choose a line based on the scroll direction, and find the first token
-        self.set_cursor(if self.cursor_visible() {
+
+        // TODO: next_cursor should be a file_cursor
+        let next_cursor = if self.cursor_visible() {
             let dir = match dy {
                 Delta::Inc(n) => Direction::Down(*n),
                 Delta::Dec(n) => Direction::Up(*n),
@@ -103,7 +96,7 @@ impl Main<'_> {
             self.file
                 .as_ref()
                 .expect("File is loaded")
-                .navigate_dir(self.cursor.byte_offset, &dir)
+                .navigate(&self.cursor, &dir)
         } else {
             log::debug!("Cursor not visible, moving to line");
             let line = match dy {
@@ -112,18 +105,20 @@ impl Main<'_> {
                     .vertical_scroll
                     .saturating_add(self.viewport.0 as usize)
                     .saturating_sub(1),
-                Delta::Zero => self.cursor.line,
+                Delta::Zero => self.cursor.line(),
             };
             self.file
                 .as_ref()
                 .expect("File is loaded")
-                .first_selectable_at_line(line)
-        });
+                .cursor_at_line(line)
+        };
+        self.set_cursor(next_cursor);
 
+        let cursor_line = self.cursor.line();
         // Scroll the view if the cursor left the viewport
-        if self.cursor.line < self.vertical_scroll {
-            self.scroll_to(Some(self.cursor.line), None);
-        } else if self.cursor.line
+        if cursor_line < self.vertical_scroll {
+            self.scroll_to(Some(cursor_line), None);
+        } else if cursor_line
             >= self
                 .vertical_scroll
                 .saturating_add(self.viewport.0 as usize)
@@ -131,7 +126,7 @@ impl Main<'_> {
             self.scroll_to(
                 Some(
                     self.cursor
-                        .line
+                        .line()
                         .saturating_sub(self.viewport.0 as usize)
                         .saturating_add(1),
                 ),
@@ -187,7 +182,7 @@ impl Main<'_> {
     #[allow(clippy::cast_possible_truncation)]
     fn draw_content(&mut self, _mode: &AppMode, frame: &mut Frame<'_>, area: Rect) {
         if let Some(file) = &self.file {
-            let (content, max_line) = file.render(self.cursor.byte_offset.try_into().unwrap());
+            let (content, max_line) = file.render(&self.cursor);
 
             self.vertical_scroll_state = self.vertical_scroll_state.content_length(content.len());
             self.horizontal_scroll_state = self.horizontal_scroll_state.content_length(max_line);
@@ -232,7 +227,7 @@ impl Main<'_> {
             .map(|i| {
                 let line_no = i.saturating_add(1);
                 let mut line = Line::from(format!("{line_no}").to_string());
-                if i == self.cursor.line {
+                if i == self.cursor.line() {
                     line = line.bg(Color::Indexed(236));
                 }
                 line
@@ -311,10 +306,12 @@ impl AppComponent for Main<'_> {
             }
             AppEvent::LoadPath(path) => {
                 let file = File::from_path(path.clone()).unwrap();
+                let default_cursor = file.first_selectable();
                 self.sender
                     .send(AppEvent::LoadedFile(path.clone()))
                     .unwrap();
                 self.file = Some(file);
+                self.set_cursor(default_cursor);
             }
             AppEvent::Write => {
                 if let Some(file) = &mut self.file {
@@ -323,19 +320,17 @@ impl AppComponent for Main<'_> {
             }
             AppEvent::Info => {
                 let message = if let Some(file) = &self.file {
-                    file.info(self.cursor.byte_offset)
+                    file.info(&self.cursor)
                 } else {
                     "No file loaded".to_string()
                 };
                 self.sender.send(AppEvent::Debug(message)).unwrap();
             }
             AppEvent::ChangeMode(_mode) => {
-                if mode == &AppMode::Input
-                    && let Some(file) = &mut self.file
-                {
-                    let tokeninfo = file.token_info_at_cursor(self.cursor.byte_offset);
+                if mode == &AppMode::Input {
+                    let nodeinfo = self.cursor.node_info.as_ref();
                     self.sender
-                        .send(AppEvent::Debug(format!("Tokeninfo: {tokeninfo:?}")))?;
+                        .send(AppEvent::Debug(format!("Tokeninfo: {nodeinfo:?}")))?;
                 }
             }
             AppEvent::Raw(e) if mode == &AppMode::Input => {

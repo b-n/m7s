@@ -1,6 +1,6 @@
-use yaml_parser::SyntaxToken;
+use yaml_parser::{SyntaxNode, SyntaxToken};
 
-use super::utils::{first_selectable_in_line, selectable_kind, whitespace_newlines};
+use super::utils::{count_newlines, is_selectable_node, whitespace_newlines};
 
 #[derive(Debug)]
 pub enum Direction {
@@ -10,10 +10,38 @@ pub enum Direction {
     Right(usize),
 }
 
-// Handles vertical movements from a token
-fn selectable_y(token: &SyntaxToken, dir: &Direction) -> SyntaxToken {
-    let mut selected = token.clone();
+fn selectable_node(node: &SyntaxNode) -> Option<SyntaxNode> {
+    if is_selectable_node(node) {
+        return Some(node.clone());
+    }
+
+    let mut target = node.clone();
+    while let Some(parent) = target.parent() {
+        if is_selectable_node(&parent) {
+            return Some(parent);
+        }
+        target = parent;
+    }
+    None
+}
+
+// Handles vertical movements from a node
+fn selectable_y(node: &SyntaxNode, dir: &Direction) -> SyntaxNode {
+    // Get the first/last token in the node.
+    let mut selected = match dir {
+        Direction::Up(_) => node.first_token(),
+        Direction::Down(_) => node.last_token(),
+        _ => unreachable!(),
+    }
+    .expect("Should always have a token");
+
+    // Start counting tokens in the direction needed
     let mut newlines = 0;
+    let target_newlines = match dir {
+        Direction::Up(n) | Direction::Down(n) => *n,
+        _ => unreachable!(),
+    };
+
     let next_token = |token: SyntaxToken| -> Option<SyntaxToken> {
         match dir {
             Direction::Up(_) => token.prev_token(),
@@ -22,13 +50,10 @@ fn selectable_y(token: &SyntaxToken, dir: &Direction) -> SyntaxToken {
         }
     };
 
-    let target_newlines = match dir {
-        Direction::Up(n) | Direction::Down(n) => *n,
-        _ => unreachable!(),
-    };
-
-    // Move to the token that is at least target_newlines away
+    // Manage a stack, just incase we need to backtrack
+    let mut token_stack = vec![];
     while let Some(ref next) = next_token(selected.clone()) {
+        token_stack.push(next.clone());
         if newlines >= target_newlines {
             break;
         }
@@ -37,46 +62,50 @@ fn selectable_y(token: &SyntaxToken, dir: &Direction) -> SyntaxToken {
         }
         selected = next.clone();
     }
+    // Selected should now be X lines away
 
     // Shortcircuit if no newlines were found
     if newlines == 0 {
-        return selected;
+        return node.clone();
     }
 
-    // If we landed on a selectable token, return it
-    if selectable_kind(selected.kind()) {
-        return first_selectable_in_line(&selected);
+    // If we found a selectable node, return it
+    let parent_node = selected.parent().expect("All tokens should have a parent");
+    if selectable_node(&parent_node).is_some() {
+        return parent_node;
     }
 
-    // Otherwise, find the first selectable token we can find
+    // Otherwise, keep going forward in the tokens until we find something
     while let Some(ref next) = next_token(selected.clone()) {
-        if selectable_kind(next.kind()) {
-            selected = next.clone();
-            break;
+        let parent_node = next.parent().expect("All tokens should have a parent");
+        if selectable_node(&parent_node).is_some() {
+            return parent_node;
         }
         selected = next.clone();
     }
 
-    // Fringe case, might have moved too far. Need to go backwards until we find something
-    if !selectable_kind(selected.kind()) {
-        while let Some(ref prev) = match dir {
-            Direction::Up(_) => selected.next_token(),
-            Direction::Down(_) => selected.prev_token(),
-            _ => unreachable!(),
-        } {
-            if selectable_kind(prev.kind()) {
-                selected = prev.clone();
-                break;
-            }
-            selected = prev.clone();
+    // And in the case we didn't find anything, then return up the stack until we find something
+    while let Some(ref next) = token_stack.pop() {
+        log::info!("next next next: {next:?}");
+        let parent_node = next.parent().expect("All tokens should have a parent");
+        if selectable_node(&parent_node).is_some() {
+            return parent_node;
         }
     }
-    first_selectable_in_line(&selected)
+
+    // And very lastly, if we found nothing, just return the input node
+    node.clone()
 }
 
 // Handles horizontal movements from a token
-fn selectable_x(token: &SyntaxToken, dir: &Direction) -> SyntaxToken {
-    let mut selected = token.clone();
+fn selectable_x(node: &SyntaxNode, dir: &Direction) -> SyntaxNode {
+    let mut selected = match dir {
+        Direction::Left(_) => node.first_token(),
+        Direction::Right(_) => node.last_token(),
+        _ => unreachable!(),
+    }
+    .expect("Should always have a token");
+
     let next_token = |token: &SyntaxToken| -> Option<SyntaxToken> {
         match dir {
             Direction::Left(_) => token.prev_token(),
@@ -84,17 +113,26 @@ fn selectable_x(token: &SyntaxToken, dir: &Direction) -> SyntaxToken {
             _ => unreachable!(),
         }
     };
-    let mut tokens = 0;
-    let total_tokens = match dir {
+    let mut selectable = 0;
+    let total_selectable = match dir {
         Direction::Left(n) | Direction::Right(n) => *n,
         _ => unreachable!(),
     };
 
     while let Some(ref next) = next_token(&selected) {
-        if selectable_kind(next.kind()) {
-            selected = next.clone();
-            tokens += 1;
-            if tokens >= total_tokens {
+        let parent_node = next.parent().expect("All tokens should have a parent");
+        if selectable_node(&parent_node).is_some() {
+            selected = match dir {
+                Direction::Left(_) => parent_node.first_token(),
+                Direction::Right(_) => parent_node.last_token(),
+                _ => unreachable!(),
+            }
+            .expect("All parents has tokens");
+
+            selectable += 1;
+            if selectable >= total_selectable
+                || count_newlines(&parent_node.text().to_string()) > 0
+            {
                 break;
             }
         }
@@ -109,22 +147,29 @@ fn selectable_x(token: &SyntaxToken, dir: &Direction) -> SyntaxToken {
     }
 
     // Went nowhere, return the original token
-    if tokens == 0 {
-        return token.clone();
+    if selectable == 0 {
+        return node.clone();
     }
 
-    selected
+    // Otherwise we can return the node attached to the token (if it is selectable)
+    let parent_node = selected.parent().expect("All tokens should have a parent");
+    if selectable_node(&parent_node).is_some() {
+        return parent_node;
+    }
+
+    // Otherwise just return the original node
+    node.clone()
 }
 
 // Assumption: The current token is always selectable
-pub(crate) fn selectable_token_in_direction(token: &SyntaxToken, dir: &Direction) -> SyntaxToken {
+pub(crate) fn node_in_direction(node: &SyntaxNode, dir: &Direction) -> SyntaxNode {
     match dir {
         Direction::Up(n) | Direction::Down(n) | Direction::Left(n) | Direction::Right(n)
             if *n == 0 =>
         {
-            token.clone()
+            node.clone()
         }
-        Direction::Up(_) | Direction::Down(_) => selectable_y(token, dir),
-        Direction::Left(_) | Direction::Right(_) => selectable_x(token, dir),
+        Direction::Up(_) | Direction::Down(_) => selectable_y(node, dir),
+        Direction::Left(_) | Direction::Right(_) => selectable_x(node, dir),
     }
 }
